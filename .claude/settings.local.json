@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"const m = require\\('@prisma/adapter-libsql'\\); console.log\\(Object.keys\\(m\\)\\)\")",
+      "Bash(node -e \"const {PrismaLibSql} = require\\('@prisma/adapter-libsql'\\); console.log\\(PrismaLibSql.toString\\(\\).slice\\(0, 200\\)\\)\")"
+    ]
+  }
+}

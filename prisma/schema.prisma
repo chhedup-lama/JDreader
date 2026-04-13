@@ -1,0 +1,77 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model MasterProfile {
+  id                      Int               @id @default(1)
+  shortTitle              String            @default("")
+  coverLetterInstructions String            @default("")
+  updatedAt               DateTime          @updatedAt
+  workExperiences         WorkExperience[]
+  skills                  Skill[]
+  leadershipStories       LeadershipStory[]
+}
+
+model WorkExperience {
+  id        Int           @id @default(autoincrement())
+  profileId Int
+  profile   MasterProfile @relation(fields: [profileId], references: [id])
+  company   String
+  role      String
+  startDate String
+  endDate   String        @default("Present")
+  bullets   String        // JSON array of strings
+  tags      String        @default("[]") // JSON array of strings
+  order     Int           @default(0)
+  createdAt DateTime      @default(now())
+}
+
+model Skill {
+  id        Int           @id @default(autoincrement())
+  profileId Int
+  profile   MasterProfile @relation(fields: [profileId], references: [id])
+  category  String
+  items     String        // JSON array of strings
+}
+
+model LeadershipStory {
+  id        Int           @id @default(autoincrement())
+  profileId Int
+  profile   MasterProfile @relation(fields: [profileId], references: [id])
+  title     String
+  situation String
+  action    String
+  result    String
+  tags      String        @default("[]") // JSON array of strings
+}
+
+model JobPosting {
+  id                Int              @id @default(autoincrement())
+  jdText            String
+  jdLink            String           @default("")
+  company           String           @default("")
+  role              String           @default("")
+  extractedFeatures String           @default("{}") // JSON
+  createdAt         DateTime         @default(now())
+  applicationPack   ApplicationPack?
+}
+
+model ApplicationPack {
+  id              Int        @id @default(autoincrement())
+  jobId           Int        @unique
+  job             JobPosting @relation(fields: [jobId], references: [id])
+  cvTitle         String     @default("")
+  cvExperiences   String     @default("[]") // JSON
+  cvSkills        String     @default("[]") // JSON
+  coverLetter     String     @default("")
+  atsScore        Int        @default(0)
+  atsReport       String     @default("{}") // JSON
+  hrEmail         String     @default("")
+  linkedinMessage String     @default("")
+  createdAt       DateTime   @default(now())
+}
