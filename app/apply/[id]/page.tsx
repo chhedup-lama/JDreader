@@ -74,7 +74,7 @@ export default function ResultsPage() {
   const [job, setJob] = useState<JobData | null>(null);
   const [pack, setPack] = useState<GenerationResult | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<Tab>("cv");
+  const [activeTab, setActiveTab] = useState<Tab>("ats");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -112,12 +112,12 @@ export default function ResultsPage() {
 
   const availableTabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
     {
-      key: "cv", label: "CV",
-      icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>,
-    },
-    {
       key: "ats", label: "ATS Report",
       icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>,
+    },
+    {
+      key: "cv", label: "CV",
+      icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>,
     },
     ...(pack.coverLetter ? [{
       key: "coverLetter" as Tab, label: "Cover Letter",

@@ -74,13 +74,78 @@ ${jdText}`,
   }
 }
 
-// ─── Call 2: Generate application pack from profile + JD ─────────────────────
-export async function generateApplicationPack(
+// ─── Call 2a: ATS analysis — profile vs JD ───────────────────────────────────
+async function analyzeATS(
+  profile: MasterProfileData,
+  features: ExtractedFeatures,
+  jdText: string
+): Promise<{ atsScore: number; atsReport: GenerationResult["atsReport"] }> {
+  const profileSummary = `MASTER PROFILE:
+Short Title: ${profile.shortTitle}
+
+Work Experiences:
+${profile.workExperiences
+  .map(
+    (exp) =>
+      `- ${exp.role} at ${exp.company} (${exp.startDate} – ${exp.endDate})
+  Achievements:
+${exp.bullets.map((b) => `    • ${b}`).join("\n")}`
+  )
+  .join("\n\n")}
+
+Skills:
+${profile.skills.map((s) => `- ${s.category}: ${s.items.join(", ")}`).join("\n")}`;
+
+  const message = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 1500,
+    messages: [
+      {
+        role: "user",
+        content: `You are an ATS expert. Analyse how well the candidate's raw profile matches the job description.
+
+${profileSummary}
+
+JOB DESCRIPTION:
+${jdText}
+
+EXTRACTED JD FEATURES:
+Role: ${features.role}
+Required Skills: ${features.requiredSkills.join(", ")}
+ATS Keywords: ${features.atsKeywords.join(", ")}
+Domain: ${features.domainContext}
+
+Return ONLY a raw JSON object — no markdown, no explanation:
+{
+  "atsScore": <integer 0-100>,
+  "atsReport": {
+    "matchedKeywords": ["keywords from the JD already present in the profile"],
+    "missingKeywords": ["important JD keywords absent from the profile"],
+    "weakSections": ["areas where the profile is thin relative to JD requirements"],
+    "suggestions": ["specific, actionable improvements to close the gap — reference exact missing keywords or weak areas"]
+  }
+}`,
+      },
+    ],
+  });
+
+  const raw = message.content[0].type === "text" ? message.content[0].text : "";
+  try {
+    const parsed = JSON.parse(extractJSON(raw));
+    return cleanResult(parsed) as { atsScore: number; atsReport: GenerationResult["atsReport"] };
+  } catch {
+    throw new Error(`ATS analysis returned invalid JSON. Raw response: ${raw.slice(0, 300)}`);
+  }
+}
+
+// ─── Call 2b: Generate CV + cover docs using ATS insights ─────────────────────
+async function generateDocuments(
   profile: MasterProfileData,
   features: ExtractedFeatures,
   jdText: string,
-  options: GenerationOptions
-): Promise<GenerationResult> {
+  options: GenerationOptions,
+  atsReport: GenerationResult["atsReport"]
+): Promise<Omit<GenerationResult, "atsScore" | "atsReport">> {
   const systemPrompt = `You are an expert CV writer and career coach. Generate tailored job application materials that read as if written by the candidate themselves.
 
 CONTENT RULES:
@@ -133,18 +198,17 @@ ${profile.leadershipStories
 Cover Letter Instructions:
 ${profile.coverLetterInstructions || "Write a professional, concise cover letter in 3 paragraphs."}`;
 
+  const atsContext = `ATS ANALYSIS (apply these insights to improve the CV and cover letter):
+Missing Keywords to weave in naturally: ${atsReport.missingKeywords.join(", ") || "none"}
+Weak Sections to strengthen: ${atsReport.weakSections.join("; ") || "none"}
+Suggestions to action:
+${atsReport.suggestions.map((s) => `- ${s}`).join("\n") || "- none"}`;
+
   const outputSpec = `Return a single JSON object with exactly these keys:
 {
   "cvTitle": "tailored professional headline for this role",
   "cvExperiences": [{ "company": "", "role": "", "startDate": "", "endDate": "", "bullets": ["..."] }],
   "cvSkills": [{ "category": "", "items": ["..."] }],
-  "atsScore": 0,
-  "atsReport": {
-    "matchedKeywords": [],
-    "missingKeywords": [],
-    "weakSections": [],
-    "suggestions": []
-  },
   "coverLetter": ${options.coverLetter ? '"full personalized cover letter text"' : '""'},
   "hrEmail": ${options.hrEmail ? '"concise outreach email to hiring manager"' : '""'},
   "linkedinMessage": ${options.linkedinMessage ? '"short LinkedIn message under 300 chars"' : '""'}
@@ -169,6 +233,8 @@ Required Skills: ${features.requiredSkills.join(", ")}
 ATS Keywords: ${features.atsKeywords.join(", ")}
 Domain: ${features.domainContext}
 
+${atsContext}
+
 ${outputSpec}`,
       },
     ],
@@ -177,8 +243,24 @@ ${outputSpec}`,
   const raw = message.content[0].type === "text" ? message.content[0].text : "";
   try {
     const parsed = JSON.parse(extractJSON(raw));
-    return cleanResult(parsed) as GenerationResult;
+    return cleanResult(parsed) as Omit<GenerationResult, "atsScore" | "atsReport">;
   } catch {
-    throw new Error(`Generation returned invalid JSON. Raw response: ${raw.slice(0, 500)}`);
+    throw new Error(`Document generation returned invalid JSON. Raw response: ${raw.slice(0, 500)}`);
   }
+}
+
+// ─── Call 2: Generate application pack — ATS first, then docs ────────────────
+export async function generateApplicationPack(
+  profile: MasterProfileData,
+  features: ExtractedFeatures,
+  jdText: string,
+  options: GenerationOptions
+): Promise<GenerationResult> {
+  // Step 1: analyse profile vs JD to produce ATS insights
+  const { atsScore, atsReport } = await analyzeATS(profile, features, jdText);
+
+  // Step 2: generate CV and cover documents, informed by ATS findings
+  const docs = await generateDocuments(profile, features, jdText, options, atsReport);
+
+  return { ...docs, atsScore, atsReport };
 }
