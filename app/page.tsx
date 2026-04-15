@@ -69,6 +69,27 @@ function stageLabel(key: string, totalRounds: number) {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
+/** Extract a bare hostname from any URL or domain string the user pastes */
+function extractDomain(raw: string): string {
+  const s = raw.trim();
+  try {
+    const url = new URL(s.startsWith("http") ? s : `https://${s}`);
+    return url.hostname.replace(/^www\./, "");
+  } catch {
+    return s.replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0];
+  }
+}
+
+/** Resolve the best logo src from a user-supplied URL or domain */
+function resolveLogoSrc(iconUrl: string | undefined, company: string): string {
+  const raw = iconUrl?.trim();
+  if (raw) {
+    const domain = extractDomain(raw);
+    return `https://logo.clearbit.com/${domain}`;
+  }
+  return `https://logo.clearbit.com/${companyDomain(company)}`;
+}
+
 function CompanyLogo({ company, iconUrl }: { company: string; iconUrl?: string }) {
   const initial = company.charAt(0).toUpperCase();
   const palettes = [
@@ -83,14 +104,20 @@ function CompanyLogo({ company, iconUrl }: { company: string; iconUrl?: string }
   ];
   const gradient = palettes[company.charCodeAt(0) % palettes.length];
 
-  // Prefer custom iconUrl, fall back to Clearbit
-  const src = iconUrl?.trim() || `https://logo.clearbit.com/${companyDomain(company)}`;
-  const [err, setErr] = useState(false);
+  const domain = iconUrl?.trim()
+    ? extractDomain(iconUrl)
+    : companyDomain(company);
 
-  // Reset error whenever the src changes (e.g. after edit)
-  useEffect(() => { setErr(false); }, [src]);
+  const sources = [
+    `https://logo.clearbit.com/${domain}`,
+    `https://www.google.com/s2/favicons?domain=${domain}&sz=128`,
+  ];
 
-  if (err) {
+  const [idx, setIdx] = useState(0);
+
+  useEffect(() => { setIdx(0); }, [domain]);
+
+  if (idx >= sources.length) {
     return (
       <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${gradient} flex items-center justify-center flex-shrink-0 shadow-sm`}>
         <span className="text-white font-bold text-lg">{initial}</span>
@@ -100,11 +127,11 @@ function CompanyLogo({ company, iconUrl }: { company: string; iconUrl?: string }
   return (
     <div className="w-12 h-12 rounded-2xl bg-white border border-slate-100 flex items-center justify-center flex-shrink-0 shadow-sm overflow-hidden">
       <img
-        key={src}
-        src={src}
+        key={sources[idx]}
+        src={sources[idx]}
         alt={company}
         className="w-9 h-9 object-contain"
-        onError={() => setErr(true)}
+        onError={() => setIdx((i) => i + 1)}
       />
     </div>
   );
@@ -187,25 +214,43 @@ function StatusPipeline({
 // ─── Summary bar ──────────────────────────────────────────────────────────────
 
 function SummaryBar({ items }: { items: TrackerItem[] }) {
-  const active    = items.filter(i => i.currentStage !== "offer" && i.currentStage !== "rejected").length;
-  const inRound   = items.filter(i => i.currentStage.startsWith("round_")).length;
-  const offers    = items.filter(i => i.currentStage === "offer").length;
+  const [open, setOpen] = useState(false);
+
+  const active  = items.filter(i => i.currentStage !== "offer" && i.currentStage !== "rejected").length;
+  const inRound = items.filter(i => i.currentStage.startsWith("round_")).length;
+  const offers  = items.filter(i => i.currentStage === "offer").length;
 
   const stats = [
-    { label: "Active",       value: active,       color: "text-blue-600" },
-    { label: "In Rounds",    value: inRound,      color: "text-violet-600" },
-    { label: "Offers",       value: offers,       color: "text-emerald-600" },
-    { label: "Total",        value: items.length, color: "text-slate-600" },
+    { label: "Active",    value: active,       color: "text-blue-600" },
+    { label: "In Rounds", value: inRound,      color: "text-violet-600" },
+    { label: "Offers",    value: offers,       color: "text-emerald-600" },
+    { label: "Total",     value: items.length, color: "text-slate-600" },
   ];
 
   return (
-    <div className="grid grid-cols-4 gap-3">
-      {stats.map((s) => (
-        <div key={s.label} className="bg-white border border-slate-200 rounded-2xl px-4 py-3.5 shadow-sm text-center">
-          <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
-          <div className="text-xs text-slate-500 font-medium mt-0.5">{s.label}</div>
+    <div>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-slate-600 transition-colors mb-2"
+      >
+        <svg
+          className={`w-3.5 h-3.5 transition-transform duration-200 ${open ? "rotate-90" : ""}`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+        Stats
+      </button>
+      {open && (
+        <div className="grid grid-cols-4 gap-3">
+          {stats.map((s) => (
+            <div key={s.label} className="bg-white border border-slate-200 rounded-2xl px-4 py-3.5 shadow-sm text-center">
+              <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
+              <div className="text-xs text-slate-500 font-medium mt-0.5">{s.label}</div>
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }
@@ -239,10 +284,6 @@ function TrackerCard({
               <p className="text-sm text-slate-500 font-medium mt-0.5 truncate">{item.company}</p>
             </div>
             <div className="flex items-center gap-1.5 flex-shrink-0">
-              <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border ${bg}`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
-                <span className={text}>{label}</span>
-              </span>
               <button
                 onClick={() => onEdit(item)}
                 className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg bg-slate-100 hover:bg-blue-50 hover:text-blue-500 flex items-center justify-center transition-all text-slate-400"
@@ -455,7 +496,7 @@ function AddModal({ onClose, onSave }: { onClose: () => void; onSave: (item: Tra
           {/* Icon URL */}
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-              Icon / Logo URL <span className="font-normal text-slate-400">(optional — paste a direct image link)</span>
+              Company Website <span className="font-normal text-slate-400">(optional — paste the company&apos;s URL, e.g. cityswift.com)</span>
             </label>
             <div className="flex gap-2 items-center">
               <div className="relative flex-1">
@@ -471,7 +512,7 @@ function AddModal({ onClose, onSave }: { onClose: () => void; onSave: (item: Tra
               </div>
               {form.iconUrl && (
                 <div className="w-10 h-10 rounded-xl border border-slate-200 bg-white overflow-hidden flex items-center justify-center flex-shrink-0 shadow-sm">
-                  <img src={form.iconUrl} alt="preview" className="w-8 h-8 object-contain" onError={(e) => (e.currentTarget.style.display = "none")} />
+                  <img src={resolveLogoSrc(form.iconUrl, form.company)} alt="preview" className="w-8 h-8 object-contain" onError={(e) => (e.currentTarget.style.display = "none")} />
                 </div>
               )}
             </div>
@@ -769,7 +810,7 @@ function EditModal({
               </div>
               {form.iconUrl && (
                 <div className="w-10 h-10 rounded-xl border border-slate-200 bg-white overflow-hidden flex items-center justify-center flex-shrink-0 shadow-sm">
-                  <img src={form.iconUrl} alt="preview" className="w-8 h-8 object-contain" onError={(e) => (e.currentTarget.style.display = "none")} />
+                  <img src={resolveLogoSrc(form.iconUrl, form.company)} alt="preview" className="w-8 h-8 object-contain" onError={(e) => (e.currentTarget.style.display = "none")} />
                 </div>
               )}
             </div>
