@@ -1012,12 +1012,32 @@ export default function Home() {
   useEffect(() => {
     fetch("/api/tracker")
       .then((r) => r.json())
-      .then((data) => { setItems(Array.isArray(data) ? data : []); setLoading(false); })
+      .then((data) => {
+        if (Array.isArray(data)) {
+          data.sort((a, b) => {
+            if (a.nextInterviewDate && b.nextInterviewDate) return a.nextInterviewDate.localeCompare(b.nextInterviewDate);
+            if (a.nextInterviewDate) return -1;
+            if (b.nextInterviewDate) return 1;
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          });
+        }
+        setItems(Array.isArray(data) ? data : []);
+        setLoading(false);
+      })
       .catch(() => setLoading(false));
   }, []);
 
+  function sortItems(arr: TrackerItem[]) {
+    return [...arr].sort((a, b) => {
+      if (a.nextInterviewDate && b.nextInterviewDate) return a.nextInterviewDate.localeCompare(b.nextInterviewDate);
+      if (a.nextInterviewDate) return -1;
+      if (b.nextInterviewDate) return 1;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  }
+
   async function handleStageChange(id: number, stage: string) {
-    setItems((prev) => prev.map((i) => i.id === id ? { ...i, currentStage: stage } : i));
+    setItems((prev) => sortItems(prev.map((i) => i.id === id ? { ...i, currentStage: stage } : i)));
     await fetch(`/api/tracker/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
