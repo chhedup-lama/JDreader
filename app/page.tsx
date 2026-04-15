@@ -1,90 +1,680 @@
-import Link from "next/link";
+"use client";
+
+import { useEffect, useState } from "react";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type EmploymentType = "full-time" | "contract";
+type Status = "applied" | "screening" | "interview" | "final_round" | "offer" | "rejected";
+type Currency = "GBP" | "USD" | "EUR" | "AUD" | "CAD";
+
+interface TrackerItem {
+  id: number;
+  company: string;
+  jobTitle: string;
+  location: string;
+  employmentType: EmploymentType;
+  salaryMin: number | null;
+  salaryMax: number | null;
+  currency: Currency;
+  status: Status;
+  notes: string;
+  createdAt: string;
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const STAGES: { key: Status; label: string }[] = [
+  { key: "applied", label: "Applied" },
+  { key: "screening", label: "Screening" },
+  { key: "interview", label: "Interview" },
+  { key: "final_round", label: "Final Round" },
+  { key: "offer", label: "Offer" },
+];
+
+const STATUS_META: Record<Status, { label: string; color: string; dot: string }> = {
+  applied:     { label: "Applied",      color: "bg-slate-100 text-slate-600 border-slate-200",     dot: "bg-slate-400" },
+  screening:   { label: "Screening",    color: "bg-blue-50 text-blue-700 border-blue-200",         dot: "bg-blue-500" },
+  interview:   { label: "Interviewing", color: "bg-violet-50 text-violet-700 border-violet-200",   dot: "bg-violet-500" },
+  final_round: { label: "Final Round",  color: "bg-amber-50 text-amber-700 border-amber-200",      dot: "bg-amber-500" },
+  offer:       { label: "Offer",        color: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },
+  rejected:    { label: "Rejected",     color: "bg-red-50 text-red-600 border-red-200",            dot: "bg-red-400" },
+};
+
+const CURRENCIES: Currency[] = ["GBP", "USD", "EUR", "AUD", "CAD"];
+const CURRENCY_SYMBOL: Record<Currency, string> = { GBP: "£", USD: "$", EUR: "€", AUD: "A$", CAD: "C$" };
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function companyDomain(name: string) {
+  return name.toLowerCase().replace(/\s+/g, "").replace(/[^a-z0-9]/g, "") + ".com";
+}
+
+function formatSalary(min: number | null, max: number | null, currency: Currency) {
+  if (!min && !max) return null;
+  const sym = CURRENCY_SYMBOL[currency];
+  const fmt = (n: number) => n >= 1000 ? `${sym}${(n / 1000).toFixed(0)}k` : `${sym}${n}`;
+  if (min && max) return `${fmt(min)} – ${fmt(max)}`;
+  if (min) return `${fmt(min)}+`;
+  return `up to ${fmt(max!)}`;
+}
+
+function stageIndex(status: Status) {
+  return STAGES.findIndex((s) => s.key === status);
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function CompanyLogo({ company }: { company: string }) {
+  const [err, setErr] = useState(false);
+  const initial = company.charAt(0).toUpperCase();
+  const colors = [
+    "from-blue-500 to-blue-600",
+    "from-violet-500 to-violet-600",
+    "from-emerald-500 to-emerald-600",
+    "from-amber-500 to-amber-600",
+    "from-rose-500 to-rose-600",
+    "from-indigo-500 to-indigo-600",
+    "from-teal-500 to-teal-600",
+    "from-cyan-500 to-cyan-600",
+  ];
+  const gradient = colors[company.charCodeAt(0) % colors.length];
+
+  if (err) {
+    return (
+      <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${gradient} flex items-center justify-center flex-shrink-0 shadow-sm`}>
+        <span className="text-white font-bold text-lg">{initial}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-12 h-12 rounded-2xl bg-white border border-slate-100 flex items-center justify-center flex-shrink-0 shadow-sm overflow-hidden">
+      <img
+        src={`https://logo.clearbit.com/${companyDomain(company)}`}
+        alt={company}
+        className="w-9 h-9 object-contain"
+        onError={() => setErr(true)}
+      />
+    </div>
+  );
+}
+
+function StatusPipeline({ status, onChange }: { status: Status; onChange: (s: Status) => void }) {
+  if (status === "rejected") {
+    return (
+      <div className="flex items-center gap-2 mt-4">
+        <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-red-50 text-red-600 border border-red-200">
+          <span className="w-1.5 h-1.5 rounded-full bg-red-400 inline-block" />
+          Rejected
+        </span>
+        <button
+          onClick={() => onChange("applied")}
+          className="text-xs text-slate-400 hover:text-slate-600 underline underline-offset-2 transition-colors"
+        >
+          Reopen
+        </button>
+      </div>
+    );
+  }
+
+  const current = stageIndex(status);
+
+  return (
+    <div className="mt-4">
+      <div className="flex items-center gap-0">
+        {STAGES.map((stage, i) => {
+          const isPast = i < current;
+          const isActive = i === current;
+          const isFuture = i > current;
+          return (
+            <div key={stage.key} className="flex items-center flex-1 last:flex-none">
+              <button
+                onClick={() => onChange(stage.key)}
+                title={`Move to ${stage.label}`}
+                className={`group relative flex flex-col items-center gap-1 transition-all ${isFuture ? "opacity-40 hover:opacity-70" : ""}`}
+              >
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-all
+                  ${isActive ? "border-blue-600 bg-blue-600 scale-110 shadow-md shadow-blue-200" : ""}
+                  ${isPast ? "border-emerald-500 bg-emerald-500" : ""}
+                  ${isFuture ? "border-slate-200 bg-white group-hover:border-slate-400" : ""}
+                `}>
+                  {isPast && (
+                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                  {isActive && <span className="w-2 h-2 rounded-full bg-white block" />}
+                </div>
+                <span className={`text-[10px] font-medium whitespace-nowrap leading-none
+                  ${isActive ? "text-blue-700 font-semibold" : ""}
+                  ${isPast ? "text-emerald-600" : ""}
+                  ${isFuture ? "text-slate-400" : ""}
+                `}>
+                  {stage.label}
+                </span>
+              </button>
+              {i < STAGES.length - 1 && (
+                <div className={`h-0.5 flex-1 mx-1 rounded-full transition-all
+                  ${i < current ? "bg-emerald-400" : "bg-slate-150"}
+                `} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Add Form Modal ───────────────────────────────────────────────────────────
+
+interface FormState {
+  company: string;
+  jobTitle: string;
+  location: string;
+  employmentType: EmploymentType;
+  salaryMin: string;
+  salaryMax: string;
+  currency: Currency;
+  status: Status;
+  notes: string;
+}
+
+const EMPTY_FORM: FormState = {
+  company: "",
+  jobTitle: "",
+  location: "",
+  employmentType: "full-time",
+  salaryMin: "",
+  salaryMax: "",
+  currency: "GBP",
+  status: "applied",
+  notes: "",
+};
+
+function AddModal({ onClose, onSave }: { onClose: () => void; onSave: (item: TrackerItem) => void }) {
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const set = (key: keyof FormState, val: string) => setForm((f) => ({ ...f, [key]: val }));
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      const res = await fetch("/api/tracker", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...form,
+          salaryMin: form.salaryMin ? parseInt(form.salaryMin) : null,
+          salaryMax: form.salaryMax ? parseInt(form.salaryMax) : null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error ?? "Failed to save"); return; }
+      onSave(data);
+    } catch {
+      setError("Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
+
+      {/* Panel */}
+      <div
+        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="sticky top-0 bg-white border-b border-slate-100 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
+          <div>
+            <h2 className="text-base font-bold text-slate-900">Track a new role</h2>
+            <p className="text-xs text-slate-400 mt-0.5">Add a job you're pursuing to your pipeline</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors"
+          >
+            <svg className="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+          {/* Company + Job Title */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2 sm:col-span-1">
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Company *</label>
+              <input
+                value={form.company}
+                onChange={(e) => set("company", e.target.value)}
+                placeholder="e.g. Google"
+                required
+                className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-slate-300"
+              />
+            </div>
+            <div className="col-span-2 sm:col-span-1">
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Job Title *</label>
+              <input
+                value={form.jobTitle}
+                onChange={(e) => set("jobTitle", e.target.value)}
+                placeholder="e.g. Senior Engineer"
+                required
+                className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-slate-300"
+              />
+            </div>
+          </div>
+
+          {/* Location */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Location</label>
+            <div className="relative">
+              <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <input
+                value={form.location}
+                onChange={(e) => set("location", e.target.value)}
+                placeholder="e.g. London, UK or Remote"
+                className="w-full border border-slate-200 rounded-xl pl-9 pr-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-slate-300"
+              />
+            </div>
+          </div>
+
+          {/* Employment Type */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Employment Type</label>
+            <div className="flex gap-2">
+              {(["full-time", "contract"] as EmploymentType[]).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => set("employmentType", t)}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border transition-all ${
+                    form.employmentType === t
+                      ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                      : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  {t === "full-time" ? "Full-time" : "Contract"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Salary Range */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Expected Salary Range</label>
+            <div className="flex gap-2 items-center">
+              <select
+                value={form.currency}
+                onChange={(e) => set("currency", e.target.value as Currency)}
+                className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-700 font-medium"
+              >
+                {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <input
+                type="number"
+                value={form.salaryMin}
+                onChange={(e) => set("salaryMin", e.target.value)}
+                placeholder="Min"
+                min={0}
+                className="flex-1 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-slate-300"
+              />
+              <span className="text-slate-300 font-light">–</span>
+              <input
+                type="number"
+                value={form.salaryMax}
+                onChange={(e) => set("salaryMax", e.target.value)}
+                placeholder="Max"
+                min={0}
+                className="flex-1 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-slate-300"
+              />
+            </div>
+          </div>
+
+          {/* Status */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Current Stage</label>
+            <div className="grid grid-cols-3 gap-2">
+              {(Object.entries(STATUS_META) as [Status, typeof STATUS_META[Status]][]).map(([key, meta]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => set("status", key)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                    form.status === key ? meta.color + " ring-2 ring-offset-1 ring-current" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${form.status === key ? meta.dot : "bg-slate-300"}`} />
+                  {meta.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Notes <span className="font-normal text-slate-400">(optional)</span></label>
+            <textarea
+              value={form.notes}
+              onChange={(e) => set("notes", e.target.value)}
+              placeholder="Recruiter contact, interview date, anything relevant..."
+              rows={3}
+              className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-slate-300 resize-none"
+            />
+          </div>
+
+          {error && (
+            <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3.5 py-2.5">{error}</p>
+          )}
+
+          {/* Actions */}
+          <div className="flex gap-2 pt-1 pb-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-3 rounded-xl text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-1 py-3 rounded-xl text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-sm disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {saving ? (
+                <>
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Saving...
+                </>
+              ) : "Track Role"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── Tracker Card ─────────────────────────────────────────────────────────────
+
+function TrackerCard({
+  item,
+  onStatusChange,
+  onDelete,
+}: {
+  item: TrackerItem;
+  onStatusChange: (id: number, status: Status) => void;
+  onDelete: (id: number) => void;
+}) {
+  const meta = STATUS_META[item.status];
+  const salary = formatSalary(item.salaryMin, item.salaryMax, item.currency);
+
+  return (
+    <div className="group bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-lg hover:border-slate-300 transition-all duration-200">
+      {/* Top row */}
+      <div className="flex items-start gap-3">
+        <CompanyLogo company={item.company} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <h3 className="font-bold text-slate-900 text-sm leading-tight truncate">{item.jobTitle}</h3>
+              <p className="text-sm text-slate-500 font-medium mt-0.5 truncate">{item.company}</p>
+            </div>
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border ${meta.color}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
+                {meta.label}
+              </span>
+              <button
+                onClick={() => onDelete(item.id)}
+                className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg bg-slate-100 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-all text-slate-400"
+              >
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Meta chips */}
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
+            {item.location && (
+              <span className="inline-flex items-center gap-1 text-[11px] text-slate-500">
+                <svg className="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                {item.location}
+              </span>
+            )}
+            <span className={`inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
+              item.employmentType === "contract"
+                ? "bg-purple-50 text-purple-700 border-purple-200"
+                : "bg-sky-50 text-sky-700 border-sky-200"
+            }`}>
+              {item.employmentType === "full-time" ? "Full-time" : "Contract"}
+            </span>
+            {salary && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {salary}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Pipeline */}
+      <StatusPipeline
+        status={item.status}
+        onChange={(s) => onStatusChange(item.id, s)}
+      />
+
+      {/* Notes */}
+      {item.notes && (
+        <p className="mt-3 text-xs text-slate-500 bg-slate-50 rounded-xl px-3 py-2 leading-relaxed border border-slate-100">
+          {item.notes}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ─── Summary Stats ────────────────────────────────────────────────────────────
+
+function SummaryBar({ items }: { items: TrackerItem[] }) {
+  const counts = items.reduce<Record<string, number>>((acc, item) => {
+    acc[item.status] = (acc[item.status] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  const stats = [
+    { label: "Active",      value: items.filter(i => !["offer","rejected"].includes(i.status)).length, color: "text-blue-600" },
+    { label: "Interviewing", value: (counts["interview"] ?? 0) + (counts["final_round"] ?? 0), color: "text-violet-600" },
+    { label: "Offers",      value: counts["offer"] ?? 0, color: "text-emerald-600" },
+    { label: "Total",       value: items.length, color: "text-slate-600" },
+  ];
+
+  return (
+    <div className="grid grid-cols-4 gap-3">
+      {stats.map((s) => (
+        <div key={s.label} className="bg-white border border-slate-200 rounded-2xl px-4 py-3.5 shadow-sm text-center">
+          <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
+          <div className="text-xs text-slate-500 font-medium mt-0.5">{s.label}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function Home() {
+  const [items, setItems] = useState<TrackerItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [filter, setFilter] = useState<Status | "all">("all");
+
+  useEffect(() => {
+    fetch("/api/tracker")
+      .then((r) => r.json())
+      .then((data) => { setItems(Array.isArray(data) ? data : []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  async function handleStatusChange(id: number, status: Status) {
+    setItems((prev) => prev.map((i) => i.id === id ? { ...i, status } : i));
+    await fetch(`/api/tracker/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+  }
+
+  async function handleDelete(id: number) {
+    if (!confirm("Remove this role from your tracker?")) return;
+    setItems((prev) => prev.filter((i) => i.id !== id));
+    await fetch(`/api/tracker/${id}`, { method: "DELETE" });
+  }
+
+  const filtered = filter === "all" ? items : items.filter((i) => i.status === filter);
+
   return (
-    <div className="min-h-[80vh] flex flex-col items-center justify-center">
-      {/* Hero */}
-      <div className="text-center max-w-2xl mx-auto mb-16">
-        <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 text-xs font-semibold px-3 py-1.5 rounded-full mb-6 border border-blue-100">
-          <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
-          Powered by Claude AI
+    <div className="max-w-5xl mx-auto space-y-6">
+      {/* Page header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+            <span className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center">
+              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </span>
+            Interview Pipeline
+          </h1>
+          <p className="text-sm text-slate-500 mt-1">Track every role you're pursuing, end-to-end.</p>
         </div>
-
-        <h1 className="text-5xl font-bold text-slate-900 leading-tight mb-4 tracking-tight">
-          Your personal<br />
-          <span className="text-blue-600">job application copilot</span>
-        </h1>
-
-        <p className="text-lg text-slate-500 leading-relaxed mb-8 max-w-lg mx-auto">
-          Paste a job description. Get a tailored CV, cover letter, ATS analysis,
-          and outreach messages — grounded entirely in your real experience.
-        </p>
-
-        <div className="flex gap-3 justify-center">
-          <Link
-            href="/apply"
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-xl transition-colors shadow-sm text-sm"
-          >
-            Start an Application
-          </Link>
-          <Link
-            href="/profile"
-            className="border border-slate-200 hover:border-slate-300 bg-white text-slate-700 hover:text-slate-900 font-semibold px-6 py-3 rounded-xl transition-all text-sm shadow-sm"
-          >
-            Set Up My Profile
-          </Link>
-        </div>
+        <button
+          onClick={() => setShowModal(true)}
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+          </svg>
+          Track New Role
+        </button>
       </div>
 
-      {/* Steps */}
-      <div className="grid grid-cols-3 gap-5 w-full max-w-3xl">
-        {[
-          {
-            step: "01",
-            title: "Build your profile",
-            desc: "Add your experiences, achievements, skills, and cover letter preferences once.",
-            icon: (
-              <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-            ),
-          },
-          {
-            step: "02",
-            title: "Paste a job description",
-            desc: "AI analyzes the JD, extracts requirements, and matches your experience.",
-            icon: (
-              <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            ),
-          },
-          {
-            step: "03",
-            title: "Get your pack",
-            desc: "Tailored CV, cover letter, ATS score, and outreach messages ready to copy.",
-            icon: (
-              <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-            ),
-          },
-        ].map((item) => (
-          <div
-            key={item.step}
-            className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow"
+      {/* Stats */}
+      {items.length > 0 && <SummaryBar items={items} />}
+
+      {/* Filter tabs */}
+      {items.length > 0 && (
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+          <button
+            onClick={() => setFilter("all")}
+            className={`flex-shrink-0 text-xs font-semibold px-3.5 py-1.5 rounded-full border transition-all ${
+              filter === "all"
+                ? "bg-slate-900 text-white border-slate-900"
+                : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
+            }`}
           >
-            <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center mb-4">
-              {item.icon}
-            </div>
-            <div className="text-xs font-bold text-slate-400 tracking-widest mb-1">
-              STEP {item.step}
-            </div>
-            <div className="font-semibold text-slate-800 mb-2">{item.title}</div>
-            <div className="text-sm text-slate-500 leading-relaxed">{item.desc}</div>
+            All ({items.length})
+          </button>
+          {(Object.entries(STATUS_META) as [Status, typeof STATUS_META[Status]][]).map(([key, meta]) => {
+            const count = items.filter(i => i.status === key).length;
+            if (count === 0) return null;
+            return (
+              <button
+                key={key}
+                onClick={() => setFilter(key)}
+                className={`flex-shrink-0 inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-full border transition-all ${
+                  filter === key ? meta.color + " ring-1 ring-current" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${filter === key ? meta.dot : "bg-slate-300"}`} />
+                {meta.label} ({count})
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Content */}
+      {loading ? (
+        <div className="flex items-center justify-center h-48">
+          <div className="flex items-center gap-3 text-slate-400">
+            <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            <span className="text-sm">Loading pipeline...</span>
           </div>
-        ))}
-      </div>
+        </div>
+      ) : items.length === 0 ? (
+        /* Empty state */
+        <div className="bg-white border-2 border-dashed border-slate-200 rounded-2xl p-16 text-center">
+          <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-5">
+            <svg className="w-7 h-7 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <div className="text-slate-800 font-bold text-lg mb-2">No roles tracked yet</div>
+          <div className="text-sm text-slate-400 mb-7 max-w-xs mx-auto">
+            Add the roles you're actively pursuing and track them through every interview stage.
+          </div>
+          <button
+            onClick={() => setShowModal(true)}
+            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-3 rounded-xl transition-colors shadow-sm"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            Track your first role
+          </button>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-12 text-slate-400 text-sm">
+          No roles with status &ldquo;{STATUS_META[filter as Status]?.label}&rdquo;.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.map((item) => (
+            <TrackerCard
+              key={item.id}
+              item={item}
+              onStatusChange={handleStatusChange}
+              onDelete={handleDelete}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Modal */}
+      {showModal && (
+        <AddModal
+          onClose={() => setShowModal(false)}
+          onSave={(item) => { setItems((prev) => [item, ...prev]); setShowModal(false); }}
+        />
+      )}
     </div>
   );
 }
