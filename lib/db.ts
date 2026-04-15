@@ -6,8 +6,9 @@ import path from "path";
 const PrismaClientClass = PrismaClient as any;
 
 function createPrismaClient() {
-  const dbPath = path.resolve(process.cwd(), "prisma/applyai.db");
-  const adapter = new PrismaLibSql({ url: `file:${dbPath}` });
+  const url = process.env.TURSO_DATABASE_URL ?? `file:${path.resolve(process.cwd(), "prisma/applyai.db")}`;
+  const authToken = process.env.TURSO_AUTH_TOKEN;
+  const adapter = new PrismaLibSql({ url, authToken });
   return new PrismaClientClass({ adapter }) as PrismaClient;
 }
 

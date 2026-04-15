@@ -3,7 +3,7 @@ import "./globals.css";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "ApplyAI – Job Application Copilot",
+  title: "Chhedup's Applications",
   description: "Personal AI-powered job application assistant",
 };
 
@@ -15,14 +15,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
           <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
             {/* Logo */}
-            <Link href="/" className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M3 4h10M3 8h7M3 12h5" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
-                </svg>
-              </div>
+            <Link href="/" className="flex items-center gap-2.5">
+              <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+                {/* Background rounded square */}
+                <rect width="36" height="36" rx="9" fill="#2563EB"/>
+                {/* Briefcase body */}
+                <rect x="7" y="15" width="22" height="14" rx="2.5" fill="white" fillOpacity="0.15" stroke="white" strokeWidth="1.6"/>
+                {/* Briefcase handle */}
+                <path d="M13 15v-2.5a2.5 2.5 0 0 1 2.5-2.5h5A2.5 2.5 0 0 1 23 12.5V15" stroke="white" strokeWidth="1.6" strokeLinecap="round"/>
+                {/* Center divider line */}
+                <line x1="7" y1="21" x2="29" y2="21" stroke="white" strokeWidth="1.4" strokeOpacity="0.5"/>
+                {/* Clasp */}
+                <rect x="15.5" y="19.5" width="5" height="3" rx="1.5" fill="white"/>
+              </svg>
               <span className="font-semibold text-slate-900 text-lg tracking-tight">
-                Apply<span className="text-blue-600">AI</span>
+                Chhedup's <span className="text-blue-600">Applications</span>
               </span>
             </Link>
 
