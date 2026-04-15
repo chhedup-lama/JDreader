@@ -146,7 +146,7 @@ export default function ResultsPage() {
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-xs text-slate-500 mb-2 font-medium">
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -161,7 +161,7 @@ export default function ResultsPage() {
             )}
           </h1>
         </div>
-        <div className="flex-shrink-0 ml-4">
+        <div className="flex-shrink-0 sm:ml-4">
           <ATSScoreRing score={pack.atsScore} />
         </div>
       </div>
@@ -169,7 +169,7 @@ export default function ResultsPage() {
       {/* Tabs */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
         {/* Tab bar */}
-        <div className="border-b border-slate-200 px-2 pt-2 flex gap-1 overflow-x-auto">
+        <div className="border-b border-slate-200 px-2 pt-2 flex gap-1 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {availableTabs.map((t) => (
             <button
               key={t.key}
@@ -238,7 +238,7 @@ export default function ResultsPage() {
             <div className="space-y-5">
               <ATSScoreRing score={pack.atsScore} />
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
                   <div className="text-xs font-semibold text-emerald-600 uppercase tracking-wider mb-3">
                     Matched Keywords ({pack.atsReport.matchedKeywords.length})

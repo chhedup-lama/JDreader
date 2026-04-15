@@ -168,7 +168,7 @@ function StatusPipeline({
 
   return (
     <div className="mt-4">
-      <div className="flex items-center">
+      <div className="flex items-center overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {stages.map((stage, i) => {
           const isPast = i < currentIdx;
           const isActive = i === currentIdx;
@@ -242,7 +242,7 @@ function SummaryBar({ items }: { items: TrackerItem[] }) {
         Stats
       </button>
       {open && (
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {stats.map((s) => (
             <div key={s.label} className="bg-white border border-slate-200 rounded-2xl px-4 py-3.5 shadow-sm text-center">
               <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
@@ -286,7 +286,7 @@ function TrackerCard({
             <div className="flex items-center gap-1.5 flex-shrink-0">
               <button
                 onClick={() => onEdit(item)}
-                className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg bg-slate-100 hover:bg-blue-50 hover:text-blue-500 flex items-center justify-center transition-all text-slate-400"
+                className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 w-6 h-6 rounded-lg bg-slate-100 hover:bg-blue-50 hover:text-blue-500 flex items-center justify-center transition-all text-slate-400"
                 title="Edit"
               >
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -295,7 +295,7 @@ function TrackerCard({
               </button>
               <button
                 onClick={() => onDelete(item.id)}
-                className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg bg-slate-100 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-all text-slate-400"
+                className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 w-6 h-6 rounded-lg bg-slate-100 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-all text-slate-400"
                 title="Delete"
               >
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -453,7 +453,7 @@ function AddModal({ onClose, onSave }: { onClose: () => void; onSave: (item: Tra
 
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
           {/* Company + Job Title */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5">Company *</label>
               <input
@@ -542,7 +542,7 @@ function AddModal({ onClose, onSave }: { onClose: () => void; onSave: (item: Tra
           {/* Salary Range */}
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1.5">Expected Salary Range</label>
-            <div className="flex gap-2 items-center">
+            <div className="flex flex-wrap gap-2 items-center">
               <select
                 value={form.currency}
                 onChange={(e) => set("currency", e.target.value as Currency)}
@@ -556,7 +556,7 @@ function AddModal({ onClose, onSave }: { onClose: () => void; onSave: (item: Tra
                 onChange={(e) => set("salaryMin", e.target.value)}
                 placeholder="Min"
                 min={0}
-                className="flex-1 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-slate-300"
+                className="flex-1 min-w-[80px] border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-slate-300"
               />
               <span className="text-slate-300 font-light">–</span>
               <input
@@ -565,7 +565,7 @@ function AddModal({ onClose, onSave }: { onClose: () => void; onSave: (item: Tra
                 onChange={(e) => set("salaryMax", e.target.value)}
                 placeholder="Max"
                 min={0}
-                className="flex-1 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-slate-300"
+                className="flex-1 min-w-[80px] border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-slate-300"
               />
             </div>
           </div>
@@ -753,7 +753,7 @@ function EditModal({
 
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
           {/* Company + Job Title */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5">Company *</label>
               <input
@@ -840,7 +840,7 @@ function EditModal({
           {/* Salary Range */}
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1.5">Expected Salary Range</label>
-            <div className="flex gap-2 items-center">
+            <div className="flex flex-wrap gap-2 items-center">
               <select
                 value={form.currency}
                 onChange={(e) => set("currency", e.target.value as Currency)}
@@ -854,7 +854,7 @@ function EditModal({
                 onChange={(e) => set("salaryMin", e.target.value)}
                 placeholder="Min"
                 min={0}
-                className="flex-1 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-slate-300"
+                className="flex-1 min-w-[80px] border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-slate-300"
               />
               <span className="text-slate-300 font-light">–</span>
               <input
@@ -863,7 +863,7 @@ function EditModal({
                 onChange={(e) => set("salaryMax", e.target.value)}
                 placeholder="Max"
                 min={0}
-                className="flex-1 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-slate-300"
+                className="flex-1 min-w-[80px] border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-slate-300"
               />
             </div>
           </div>
