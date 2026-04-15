@@ -70,7 +70,6 @@ function stageLabel(key: string, totalRounds: number) {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function CompanyLogo({ company, iconUrl }: { company: string; iconUrl?: string }) {
-  const [err, setErr] = useState(false);
   const initial = company.charAt(0).toUpperCase();
   const palettes = [
     "from-blue-500 to-blue-600",
@@ -83,7 +82,13 @@ function CompanyLogo({ company, iconUrl }: { company: string; iconUrl?: string }
     "from-cyan-500 to-cyan-600",
   ];
   const gradient = palettes[company.charCodeAt(0) % palettes.length];
-  const src = iconUrl && iconUrl.trim() ? iconUrl.trim() : `https://logo.clearbit.com/${companyDomain(company)}`;
+
+  // Prefer custom iconUrl, fall back to Clearbit
+  const src = iconUrl?.trim() || `https://logo.clearbit.com/${companyDomain(company)}`;
+  const [err, setErr] = useState(false);
+
+  // Reset error whenever the src changes (e.g. after edit)
+  useEffect(() => { setErr(false); }, [src]);
 
   if (err) {
     return (
@@ -95,6 +100,7 @@ function CompanyLogo({ company, iconUrl }: { company: string; iconUrl?: string }
   return (
     <div className="w-12 h-12 rounded-2xl bg-white border border-slate-100 flex items-center justify-center flex-shrink-0 shadow-sm overflow-hidden">
       <img
+        key={src}
         src={src}
         alt={company}
         className="w-9 h-9 object-contain"
