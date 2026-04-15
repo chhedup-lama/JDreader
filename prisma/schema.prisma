@@ -85,7 +85,8 @@ model InterviewTracker {
   salaryMin      Int?
   salaryMax      Int?
   currency       String   @default("GBP")
-  status         String   @default("applied") // "applied" | "screening" | "interview" | "final_round" | "offer" | "rejected"
+  totalRounds    Int      @default(3)
+  currentStage   String   @default("screening") // "screening" | "round_1" | "round_2" | ... | "offer" | "rejected"
   notes          String   @default("")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

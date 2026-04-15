@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type EmploymentType = "full-time" | "contract";
-type Status = "applied" | "screening" | "interview" | "final_round" | "offer" | "rejected";
 type Currency = "GBP" | "USD" | "EUR" | "AUD" | "CAD";
 
 interface TrackerItem {
@@ -17,34 +16,30 @@ interface TrackerItem {
   salaryMin: number | null;
   salaryMax: number | null;
   currency: Currency;
-  status: Status;
+  totalRounds: number;
+  currentStage: string; // "screening" | "round_1" | "round_2" | ... | "offer" | "rejected"
   notes: string;
   createdAt: string;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const STAGES: { key: Status; label: string }[] = [
-  { key: "applied", label: "Applied" },
-  { key: "screening", label: "Screening" },
-  { key: "interview", label: "Interview" },
-  { key: "final_round", label: "Final Round" },
-  { key: "offer", label: "Offer" },
-];
-
-const STATUS_META: Record<Status, { label: string; color: string; dot: string }> = {
-  applied:     { label: "Applied",      color: "bg-slate-100 text-slate-600 border-slate-200",     dot: "bg-slate-400" },
-  screening:   { label: "Screening",    color: "bg-blue-50 text-blue-700 border-blue-200",         dot: "bg-blue-500" },
-  interview:   { label: "Interviewing", color: "bg-violet-50 text-violet-700 border-violet-200",   dot: "bg-violet-500" },
-  final_round: { label: "Final Round",  color: "bg-amber-50 text-amber-700 border-amber-200",      dot: "bg-amber-500" },
-  offer:       { label: "Offer",        color: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },
-  rejected:    { label: "Rejected",     color: "bg-red-50 text-red-600 border-red-200",            dot: "bg-red-400" },
-};
-
 const CURRENCIES: Currency[] = ["GBP", "USD", "EUR", "AUD", "CAD"];
 const CURRENCY_SYMBOL: Record<Currency, string> = { GBP: "£", USD: "$", EUR: "€", AUD: "A$", CAD: "C$" };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Build the ordered stage keys for a given totalRounds */
+function buildStages(totalRounds: number): { key: string; label: string }[] {
+  const stages: { key: string; label: string }[] = [
+    { key: "screening", label: "Screening" },
+  ];
+  for (let i = 1; i <= totalRounds; i++) {
+    stages.push({ key: `round_${i}`, label: `Round ${i}` });
+  }
+  stages.push({ key: "offer", label: "Offer" });
+  return stages;
+}
 
 function companyDomain(name: string) {
   return name.toLowerCase().replace(/\s+/g, "").replace(/[^a-z0-9]/g, "") + ".com";
@@ -59,8 +54,16 @@ function formatSalary(min: number | null, max: number | null, currency: Currency
   return `up to ${fmt(max!)}`;
 }
 
-function stageIndex(status: Status) {
-  return STAGES.findIndex((s) => s.key === status);
+function stageColor(key: string) {
+  if (key === "screening") return { dot: "bg-blue-500", text: "text-blue-700", bg: "bg-blue-50 border-blue-200" };
+  if (key === "offer")     return { dot: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200" };
+  if (key === "rejected")  return { dot: "bg-red-400", text: "text-red-600", bg: "bg-red-50 border-red-200" };
+  // round_N
+  return { dot: "bg-violet-500", text: "text-violet-700", bg: "bg-violet-50 border-violet-200" };
+}
+
+function stageLabel(key: string, totalRounds: number) {
+  return buildStages(totalRounds).find((s) => s.key === key)?.label ?? key;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -68,7 +71,7 @@ function stageIndex(status: Status) {
 function CompanyLogo({ company }: { company: string }) {
   const [err, setErr] = useState(false);
   const initial = company.charAt(0).toUpperCase();
-  const colors = [
+  const palettes = [
     "from-blue-500 to-blue-600",
     "from-violet-500 to-violet-600",
     "from-emerald-500 to-emerald-600",
@@ -78,7 +81,7 @@ function CompanyLogo({ company }: { company: string }) {
     "from-teal-500 to-teal-600",
     "from-cyan-500 to-cyan-600",
   ];
-  const gradient = colors[company.charCodeAt(0) % colors.length];
+  const gradient = palettes[company.charCodeAt(0) % palettes.length];
 
   if (err) {
     return (
@@ -87,7 +90,6 @@ function CompanyLogo({ company }: { company: string }) {
       </div>
     );
   }
-
   return (
     <div className="w-12 h-12 rounded-2xl bg-white border border-slate-100 flex items-center justify-center flex-shrink-0 shadow-sm overflow-hidden">
       <img
@@ -100,8 +102,16 @@ function CompanyLogo({ company }: { company: string }) {
   );
 }
 
-function StatusPipeline({ status, onChange }: { status: Status; onChange: (s: Status) => void }) {
-  if (status === "rejected") {
+function StatusPipeline({
+  item,
+  onChange,
+}: {
+  item: TrackerItem;
+  onChange: (stage: string) => void;
+}) {
+  const { currentStage, totalRounds } = item;
+
+  if (currentStage === "rejected") {
     return (
       <div className="flex items-center gap-2 mt-4">
         <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-red-50 text-red-600 border border-red-200">
@@ -109,7 +119,7 @@ function StatusPipeline({ status, onChange }: { status: Status; onChange: (s: St
           Rejected
         </span>
         <button
-          onClick={() => onChange("applied")}
+          onClick={() => onChange("screening")}
           className="text-xs text-slate-400 hover:text-slate-600 underline underline-offset-2 transition-colors"
         >
           Reopen
@@ -118,25 +128,26 @@ function StatusPipeline({ status, onChange }: { status: Status; onChange: (s: St
     );
   }
 
-  const current = stageIndex(status);
+  const stages = buildStages(totalRounds);
+  const currentIdx = stages.findIndex((s) => s.key === currentStage);
 
   return (
     <div className="mt-4">
-      <div className="flex items-center gap-0">
-        {STAGES.map((stage, i) => {
-          const isPast = i < current;
-          const isActive = i === current;
-          const isFuture = i > current;
+      <div className="flex items-center">
+        {stages.map((stage, i) => {
+          const isPast = i < currentIdx;
+          const isActive = i === currentIdx;
+          const isFuture = i > currentIdx;
           return (
             <div key={stage.key} className="flex items-center flex-1 last:flex-none">
               <button
                 onClick={() => onChange(stage.key)}
                 title={`Move to ${stage.label}`}
-                className={`group relative flex flex-col items-center gap-1 transition-all ${isFuture ? "opacity-40 hover:opacity-70" : ""}`}
+                className={`group flex flex-col items-center gap-1 transition-all ${isFuture ? "opacity-35 hover:opacity-70" : ""}`}
               >
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-all
                   ${isActive ? "border-blue-600 bg-blue-600 scale-110 shadow-md shadow-blue-200" : ""}
-                  ${isPast ? "border-emerald-500 bg-emerald-500" : ""}
+                  ${isPast  ? "border-emerald-500 bg-emerald-500" : ""}
                   ${isFuture ? "border-slate-200 bg-white group-hover:border-slate-400" : ""}
                 `}>
                   {isPast && (
@@ -148,21 +159,148 @@ function StatusPipeline({ status, onChange }: { status: Status; onChange: (s: St
                 </div>
                 <span className={`text-[10px] font-medium whitespace-nowrap leading-none
                   ${isActive ? "text-blue-700 font-semibold" : ""}
-                  ${isPast ? "text-emerald-600" : ""}
+                  ${isPast  ? "text-emerald-600" : ""}
                   ${isFuture ? "text-slate-400" : ""}
                 `}>
                   {stage.label}
                 </span>
               </button>
-              {i < STAGES.length - 1 && (
-                <div className={`h-0.5 flex-1 mx-1 rounded-full transition-all
-                  ${i < current ? "bg-emerald-400" : "bg-slate-150"}
-                `} />
+              {i < stages.length - 1 && (
+                <div className={`h-0.5 flex-1 mx-1 rounded-full transition-all ${i < currentIdx ? "bg-emerald-400" : "bg-slate-150"}`} />
               )}
             </div>
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// ─── Summary bar ──────────────────────────────────────────────────────────────
+
+function SummaryBar({ items }: { items: TrackerItem[] }) {
+  const active    = items.filter(i => i.currentStage !== "offer" && i.currentStage !== "rejected").length;
+  const inRound   = items.filter(i => i.currentStage.startsWith("round_")).length;
+  const offers    = items.filter(i => i.currentStage === "offer").length;
+
+  const stats = [
+    { label: "Active",       value: active,       color: "text-blue-600" },
+    { label: "In Rounds",    value: inRound,      color: "text-violet-600" },
+    { label: "Offers",       value: offers,       color: "text-emerald-600" },
+    { label: "Total",        value: items.length, color: "text-slate-600" },
+  ];
+
+  return (
+    <div className="grid grid-cols-4 gap-3">
+      {stats.map((s) => (
+        <div key={s.label} className="bg-white border border-slate-200 rounded-2xl px-4 py-3.5 shadow-sm text-center">
+          <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
+          <div className="text-xs text-slate-500 font-medium mt-0.5">{s.label}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Tracker Card ─────────────────────────────────────────────────────────────
+
+function TrackerCard({
+  item,
+  onStageChange,
+  onDelete,
+}: {
+  item: TrackerItem;
+  onStageChange: (id: number, stage: string) => void;
+  onDelete: (id: number) => void;
+}) {
+  const { dot, text, bg } = stageColor(item.currentStage);
+  const salary = formatSalary(item.salaryMin, item.salaryMax, item.currency);
+  const label  = stageLabel(item.currentStage, item.totalRounds);
+
+  return (
+    <div className="group bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-lg hover:border-slate-300 transition-all duration-200">
+      {/* Top row */}
+      <div className="flex items-start gap-3">
+        <CompanyLogo company={item.company} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <h3 className="font-bold text-slate-900 text-sm leading-tight truncate">{item.jobTitle}</h3>
+              <p className="text-sm text-slate-500 font-medium mt-0.5 truncate">{item.company}</p>
+            </div>
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border ${bg}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
+                <span className={text}>{label}</span>
+              </span>
+              <button
+                onClick={() => onDelete(item.id)}
+                className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg bg-slate-100 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-all text-slate-400"
+              >
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Meta chips */}
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
+            {item.location && (
+              <span className="inline-flex items-center gap-1 text-[11px] text-slate-500">
+                <svg className="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                {item.location}
+              </span>
+            )}
+            <span className={`inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
+              item.employmentType === "contract"
+                ? "bg-purple-50 text-purple-700 border-purple-200"
+                : "bg-sky-50 text-sky-700 border-sky-200"
+            }`}>
+              {item.employmentType === "full-time" ? "Full-time" : "Contract"}
+            </span>
+            {salary && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {salary}
+              </span>
+            )}
+            <span className="inline-flex items-center gap-1 text-[11px] text-slate-400">
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              {item.totalRounds} round{item.totalRounds !== 1 ? "s" : ""}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Pipeline */}
+      <StatusPipeline item={item} onChange={(stage) => onStageChange(item.id, stage)} />
+
+      {/* Reject button */}
+      {item.currentStage !== "rejected" && item.currentStage !== "offer" && (
+        <div className="mt-3 flex justify-end">
+          <button
+            onClick={() => onStageChange(item.id, "rejected")}
+            className="text-[11px] text-slate-300 hover:text-red-400 transition-colors"
+          >
+            Mark as rejected
+          </button>
+        </div>
+      )}
+
+      {/* Notes */}
+      {item.notes && (
+        <p className="mt-3 text-xs text-slate-500 bg-slate-50 rounded-xl px-3 py-2 leading-relaxed border border-slate-100">
+          {item.notes}
+        </p>
+      )}
     </div>
   );
 }
@@ -177,7 +315,7 @@ interface FormState {
   salaryMin: string;
   salaryMax: string;
   currency: Currency;
-  status: Status;
+  totalRounds: number;
   notes: string;
 }
 
@@ -189,7 +327,7 @@ const EMPTY_FORM: FormState = {
   salaryMin: "",
   salaryMax: "",
   currency: "GBP",
-  status: "applied",
+  totalRounds: 3,
   notes: "",
 };
 
@@ -198,7 +336,8 @@ function AddModal({ onClose, onSave }: { onClose: () => void; onSave: (item: Tra
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const set = (key: keyof FormState, val: string) => setForm((f) => ({ ...f, [key]: val }));
+  const set = <K extends keyof FormState>(key: K, val: FormState[K]) =>
+    setForm((f) => ({ ...f, [key]: val }));
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -224,12 +363,11 @@ function AddModal({ onClose, onSave }: { onClose: () => void; onSave: (item: Tra
     }
   }
 
+  const previewStages = buildStages(form.totalRounds);
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
-      {/* Backdrop */}
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
-
-      {/* Panel */}
       <div
         className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
@@ -238,7 +376,7 @@ function AddModal({ onClose, onSave }: { onClose: () => void; onSave: (item: Tra
         <div className="sticky top-0 bg-white border-b border-slate-100 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
           <div>
             <h2 className="text-base font-bold text-slate-900">Track a new role</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Add a job you're pursuing to your pipeline</p>
+            <p className="text-xs text-slate-400 mt-0.5">Add a role you&apos;ve had a screening call for</p>
           </div>
           <button
             onClick={onClose}
@@ -253,7 +391,7 @@ function AddModal({ onClose, onSave }: { onClose: () => void; onSave: (item: Tra
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
           {/* Company + Job Title */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2 sm:col-span-1">
+            <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5">Company *</label>
               <input
                 value={form.company}
@@ -263,7 +401,7 @@ function AddModal({ onClose, onSave }: { onClose: () => void; onSave: (item: Tra
                 className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-slate-300"
               />
             </div>
-            <div className="col-span-2 sm:col-span-1">
+            <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5">Job Title *</label>
               <input
                 value={form.jobTitle}
@@ -344,33 +482,60 @@ function AddModal({ onClose, onSave }: { onClose: () => void; onSave: (item: Tra
             </div>
           </div>
 
-          {/* Status */}
+          {/* Interview Rounds */}
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Current Stage</label>
-            <div className="grid grid-cols-3 gap-2">
-              {(Object.entries(STATUS_META) as [Status, typeof STATUS_META[Status]][]).map(([key, meta]) => (
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+              Number of Interview Rounds
+              <span className="font-normal text-slate-400 ml-1">— how many rounds does this process have?</span>
+            </label>
+            <div className="flex gap-2">
+              {[1, 2, 3, 4, 5].map((n) => (
                 <button
-                  key={key}
+                  key={n}
                   type="button"
-                  onClick={() => set("status", key)}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
-                    form.status === key ? meta.color + " ring-2 ring-offset-1 ring-current" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
+                  onClick={() => set("totalRounds", n)}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold border transition-all ${
+                    form.totalRounds === n
+                      ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                      : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
                   }`}
                 >
-                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${form.status === key ? meta.dot : "bg-slate-300"}`} />
-                  {meta.label}
+                  {n}
                 </button>
               ))}
+            </div>
+            {/* Live pipeline preview */}
+            <div className="mt-3 bg-slate-50 rounded-xl px-4 py-3 border border-slate-100">
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Pipeline preview</p>
+              <div className="flex items-center gap-1">
+                {previewStages.map((s, i) => (
+                  <div key={s.key} className="flex items-center gap-1 flex-1 last:flex-none">
+                    <div className="flex flex-col items-center gap-0.5">
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                        i === 0 ? "border-blue-600 bg-blue-600" : "border-slate-200 bg-white"
+                      }`}>
+                        {i === 0 && <span className="w-1.5 h-1.5 rounded-full bg-white block" />}
+                      </div>
+                      <span className="text-[9px] text-slate-500 whitespace-nowrap">{s.label}</span>
+                    </div>
+                    {i < previewStages.length - 1 && (
+                      <div className="h-0.5 flex-1 bg-slate-200 rounded-full mb-3" />
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
           {/* Notes */}
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Notes <span className="font-normal text-slate-400">(optional)</span></label>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+              Notes <span className="font-normal text-slate-400">(optional)</span>
+            </label>
             <textarea
               value={form.notes}
               onChange={(e) => set("notes", e.target.value)}
-              placeholder="Recruiter contact, interview date, anything relevant..."
+              placeholder="Recruiter name, next interview date, anything relevant..."
               rows={3}
               className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-slate-300 resize-none"
             />
@@ -380,7 +545,6 @@ function AddModal({ onClose, onSave }: { onClose: () => void; onSave: (item: Tra
             <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3.5 py-2.5">{error}</p>
           )}
 
-          {/* Actions */}
           <div className="flex gap-2 pt-1 pb-1">
             <button
               type="button"
@@ -411,127 +575,15 @@ function AddModal({ onClose, onSave }: { onClose: () => void; onSave: (item: Tra
   );
 }
 
-// ─── Tracker Card ─────────────────────────────────────────────────────────────
-
-function TrackerCard({
-  item,
-  onStatusChange,
-  onDelete,
-}: {
-  item: TrackerItem;
-  onStatusChange: (id: number, status: Status) => void;
-  onDelete: (id: number) => void;
-}) {
-  const meta = STATUS_META[item.status];
-  const salary = formatSalary(item.salaryMin, item.salaryMax, item.currency);
-
-  return (
-    <div className="group bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-lg hover:border-slate-300 transition-all duration-200">
-      {/* Top row */}
-      <div className="flex items-start gap-3">
-        <CompanyLogo company={item.company} />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <h3 className="font-bold text-slate-900 text-sm leading-tight truncate">{item.jobTitle}</h3>
-              <p className="text-sm text-slate-500 font-medium mt-0.5 truncate">{item.company}</p>
-            </div>
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-              <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border ${meta.color}`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
-                {meta.label}
-              </span>
-              <button
-                onClick={() => onDelete(item.id)}
-                className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg bg-slate-100 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-all text-slate-400"
-              >
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          {/* Meta chips */}
-          <div className="flex items-center gap-2 mt-2 flex-wrap">
-            {item.location && (
-              <span className="inline-flex items-center gap-1 text-[11px] text-slate-500">
-                <svg className="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                {item.location}
-              </span>
-            )}
-            <span className={`inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
-              item.employmentType === "contract"
-                ? "bg-purple-50 text-purple-700 border-purple-200"
-                : "bg-sky-50 text-sky-700 border-sky-200"
-            }`}>
-              {item.employmentType === "full-time" ? "Full-time" : "Contract"}
-            </span>
-            {salary && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                {salary}
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Pipeline */}
-      <StatusPipeline
-        status={item.status}
-        onChange={(s) => onStatusChange(item.id, s)}
-      />
-
-      {/* Notes */}
-      {item.notes && (
-        <p className="mt-3 text-xs text-slate-500 bg-slate-50 rounded-xl px-3 py-2 leading-relaxed border border-slate-100">
-          {item.notes}
-        </p>
-      )}
-    </div>
-  );
-}
-
-// ─── Summary Stats ────────────────────────────────────────────────────────────
-
-function SummaryBar({ items }: { items: TrackerItem[] }) {
-  const counts = items.reduce<Record<string, number>>((acc, item) => {
-    acc[item.status] = (acc[item.status] ?? 0) + 1;
-    return acc;
-  }, {});
-
-  const stats = [
-    { label: "Active",      value: items.filter(i => !["offer","rejected"].includes(i.status)).length, color: "text-blue-600" },
-    { label: "Interviewing", value: (counts["interview"] ?? 0) + (counts["final_round"] ?? 0), color: "text-violet-600" },
-    { label: "Offers",      value: counts["offer"] ?? 0, color: "text-emerald-600" },
-    { label: "Total",       value: items.length, color: "text-slate-600" },
-  ];
-
-  return (
-    <div className="grid grid-cols-4 gap-3">
-      {stats.map((s) => (
-        <div key={s.label} className="bg-white border border-slate-200 rounded-2xl px-4 py-3.5 shadow-sm text-center">
-          <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
-          <div className="text-xs text-slate-500 font-medium mt-0.5">{s.label}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // ─── Main Page ────────────────────────────────────────────────────────────────
+
+type FilterKey = "all" | "screening" | "interviewing" | "offer" | "rejected";
 
 export default function Home() {
   const [items, setItems] = useState<TrackerItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [filter, setFilter] = useState<Status | "all">("all");
+  const [filter, setFilter] = useState<FilterKey>("all");
 
   useEffect(() => {
     fetch("/api/tracker")
@@ -540,12 +592,12 @@ export default function Home() {
       .catch(() => setLoading(false));
   }, []);
 
-  async function handleStatusChange(id: number, status: Status) {
-    setItems((prev) => prev.map((i) => i.id === id ? { ...i, status } : i));
+  async function handleStageChange(id: number, stage: string) {
+    setItems((prev) => prev.map((i) => i.id === id ? { ...i, currentStage: stage } : i));
     await fetch(`/api/tracker/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ currentStage: stage }),
     });
   }
 
@@ -555,11 +607,27 @@ export default function Home() {
     await fetch(`/api/tracker/${id}`, { method: "DELETE" });
   }
 
-  const filtered = filter === "all" ? items : items.filter((i) => i.status === filter);
+  const filterFns: Record<FilterKey, (i: TrackerItem) => boolean> = {
+    all:         () => true,
+    screening:   (i) => i.currentStage === "screening",
+    interviewing:(i) => i.currentStage.startsWith("round_"),
+    offer:       (i) => i.currentStage === "offer",
+    rejected:    (i) => i.currentStage === "rejected",
+  };
+
+  const filtered = items.filter(filterFns[filter]);
+
+  const filterTabs: { key: FilterKey; label: string; count: number }[] = [
+    { key: "all",          label: "All",          count: items.length },
+    { key: "screening",    label: "Screening",    count: items.filter(filterFns.screening).length },
+    { key: "interviewing", label: "Interviewing", count: items.filter(filterFns.interviewing).length },
+    { key: "offer",        label: "Offers",       count: items.filter(filterFns.offer).length },
+    { key: "rejected",     label: "Rejected",     count: items.filter(filterFns.rejected).length },
+  ];
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      {/* Page header */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
@@ -570,7 +638,7 @@ export default function Home() {
             </span>
             Interview Pipeline
           </h1>
-          <p className="text-sm text-slate-500 mt-1">Track every role you're pursuing, end-to-end.</p>
+          <p className="text-sm text-slate-500 mt-1">Track every role from screening to offer.</p>
         </div>
         <button
           onClick={() => setShowModal(true)}
@@ -588,30 +656,20 @@ export default function Home() {
 
       {/* Filter tabs */}
       {items.length > 0 && (
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
-          <button
-            onClick={() => setFilter("all")}
-            className={`flex-shrink-0 text-xs font-semibold px-3.5 py-1.5 rounded-full border transition-all ${
-              filter === "all"
-                ? "bg-slate-900 text-white border-slate-900"
-                : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
-            }`}
-          >
-            All ({items.length})
-          </button>
-          {(Object.entries(STATUS_META) as [Status, typeof STATUS_META[Status]][]).map(([key, meta]) => {
-            const count = items.filter(i => i.status === key).length;
-            if (count === 0) return null;
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          {filterTabs.map(({ key, label, count }) => {
+            if (key !== "all" && count === 0) return null;
             return (
               <button
                 key={key}
                 onClick={() => setFilter(key)}
-                className={`flex-shrink-0 inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-full border transition-all ${
-                  filter === key ? meta.color + " ring-1 ring-current" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
+                className={`flex-shrink-0 text-xs font-semibold px-3.5 py-1.5 rounded-full border transition-all ${
+                  filter === key
+                    ? "bg-slate-900 text-white border-slate-900"
+                    : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
                 }`}
               >
-                <span className={`w-1.5 h-1.5 rounded-full ${filter === key ? meta.dot : "bg-slate-300"}`} />
-                {meta.label} ({count})
+                {label} ({count})
               </button>
             );
           })}
@@ -630,16 +688,15 @@ export default function Home() {
           </div>
         </div>
       ) : items.length === 0 ? (
-        /* Empty state */
         <div className="bg-white border-2 border-dashed border-slate-200 rounded-2xl p-16 text-center">
           <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-5">
             <svg className="w-7 h-7 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
             </svg>
           </div>
-          <div className="text-slate-800 font-bold text-lg mb-2">No roles tracked yet</div>
+          <div className="text-slate-800 font-bold text-lg mb-2">No roles in your pipeline</div>
           <div className="text-sm text-slate-400 mb-7 max-w-xs mx-auto">
-            Add the roles you're actively pursuing and track them through every interview stage.
+            Add a role once you&apos;ve had your screening call and track it through every round.
           </div>
           <button
             onClick={() => setShowModal(true)}
@@ -652,23 +709,20 @@ export default function Home() {
           </button>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-12 text-slate-400 text-sm">
-          No roles with status &ldquo;{STATUS_META[filter as Status]?.label}&rdquo;.
-        </div>
+        <div className="text-center py-12 text-slate-400 text-sm">No roles match this filter.</div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((item) => (
             <TrackerCard
               key={item.id}
               item={item}
-              onStatusChange={handleStatusChange}
+              onStageChange={handleStageChange}
               onDelete={handleDelete}
             />
           ))}
         </div>
       )}
 
-      {/* Modal */}
       {showModal && (
         <AddModal
           onClose={() => setShowModal(false)}

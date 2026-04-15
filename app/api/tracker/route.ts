@@ -16,7 +16,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { company, jobTitle, location, employmentType, salaryMin, salaryMax, currency, status, notes } = body;
+    const { company, jobTitle, location, employmentType, salaryMin, salaryMax, currency, totalRounds, notes } = body;
 
     if (!company?.trim() || !jobTitle?.trim()) {
       return NextResponse.json({ error: "Company and job title are required" }, { status: 400 });
@@ -31,7 +31,8 @@ export async function POST(req: NextRequest) {
         salaryMin: salaryMin ? parseInt(salaryMin) : null,
         salaryMax: salaryMax ? parseInt(salaryMax) : null,
         currency: currency ?? "GBP",
-        status: status ?? "applied",
+        totalRounds: totalRounds ? parseInt(totalRounds) : 3,
+        currentStage: "screening",
         notes: notes?.trim() ?? "",
       },
     });
