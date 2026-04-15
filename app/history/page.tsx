@@ -54,6 +54,25 @@ export default function HistoryPage() {
   const [applications, setApplications] = useState<ApplicationSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  async function handleDelete(id: number) {
+    if (!confirm("Delete this application? This cannot be undone.")) return;
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/jobs/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setApplications((prev) => prev.filter((a) => a.id !== id));
+      } else {
+        const data = await res.json();
+        alert(data.error ?? "Failed to delete");
+      }
+    } catch {
+      alert("Failed to delete");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   useEffect(() => {
     fetch("/api/jobs/list")
@@ -195,7 +214,7 @@ export default function HistoryPage() {
                   )}
                 </div>
 
-                {/* Right: ATS score + view button */}
+                {/* Right: ATS score + view button + delete */}
                 <div className="flex flex-col items-end gap-3 flex-shrink-0">
                   {app.pack && <ATSBadge score={app.pack.atsScore} />}
 
@@ -212,6 +231,24 @@ export default function HistoryPage() {
                   ) : (
                     <span className="text-xs text-slate-400 italic">No pack generated</span>
                   )}
+
+                  <button
+                    onClick={() => handleDelete(app.id)}
+                    disabled={deletingId === app.id}
+                    className="text-xs text-slate-400 hover:text-red-600 flex items-center gap-1 transition-colors disabled:opacity-50"
+                  >
+                    {deletingId === app.id ? (
+                      <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    )}
+                    Delete
+                  </button>
                 </div>
               </div>
             </div>
