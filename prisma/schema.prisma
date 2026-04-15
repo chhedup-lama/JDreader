@@ -87,6 +87,7 @@ model InterviewTracker {
   currency       String   @default("GBP")
   totalRounds    Int      @default(3)
   currentStage   String   @default("screening") // "screening" | "round_1" | "round_2" | ... | "offer" | "rejected"
+  iconUrl        String   @default("")
   notes          String   @default("")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

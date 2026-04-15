@@ -18,6 +18,7 @@ interface TrackerItem {
   currency: Currency;
   totalRounds: number;
   currentStage: string; // "screening" | "round_1" | "round_2" | ... | "offer" | "rejected"
+  iconUrl: string;
   notes: string;
   createdAt: string;
 }
@@ -68,7 +69,7 @@ function stageLabel(key: string, totalRounds: number) {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function CompanyLogo({ company }: { company: string }) {
+function CompanyLogo({ company, iconUrl }: { company: string; iconUrl?: string }) {
   const [err, setErr] = useState(false);
   const initial = company.charAt(0).toUpperCase();
   const palettes = [
@@ -82,6 +83,7 @@ function CompanyLogo({ company }: { company: string }) {
     "from-cyan-500 to-cyan-600",
   ];
   const gradient = palettes[company.charCodeAt(0) % palettes.length];
+  const src = iconUrl && iconUrl.trim() ? iconUrl.trim() : `https://logo.clearbit.com/${companyDomain(company)}`;
 
   if (err) {
     return (
@@ -93,7 +95,7 @@ function CompanyLogo({ company }: { company: string }) {
   return (
     <div className="w-12 h-12 rounded-2xl bg-white border border-slate-100 flex items-center justify-center flex-shrink-0 shadow-sm overflow-hidden">
       <img
-        src={`https://logo.clearbit.com/${companyDomain(company)}`}
+        src={src}
         alt={company}
         className="w-9 h-9 object-contain"
         onError={() => setErr(true)}
@@ -208,10 +210,12 @@ function TrackerCard({
   item,
   onStageChange,
   onDelete,
+  onEdit,
 }: {
   item: TrackerItem;
   onStageChange: (id: number, stage: string) => void;
   onDelete: (id: number) => void;
+  onEdit: (item: TrackerItem) => void;
 }) {
   const { dot, text, bg } = stageColor(item.currentStage);
   const salary = formatSalary(item.salaryMin, item.salaryMax, item.currency);
@@ -221,7 +225,7 @@ function TrackerCard({
     <div className="group bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-lg hover:border-slate-300 transition-all duration-200">
       {/* Top row */}
       <div className="flex items-start gap-3">
-        <CompanyLogo company={item.company} />
+        <CompanyLogo company={item.company} iconUrl={item.iconUrl} />
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
@@ -234,8 +238,18 @@ function TrackerCard({
                 <span className={text}>{label}</span>
               </span>
               <button
+                onClick={() => onEdit(item)}
+                className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg bg-slate-100 hover:bg-blue-50 hover:text-blue-500 flex items-center justify-center transition-all text-slate-400"
+                title="Edit"
+              >
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </button>
+              <button
                 onClick={() => onDelete(item.id)}
                 className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg bg-slate-100 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-all text-slate-400"
+                title="Delete"
               >
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -316,6 +330,7 @@ interface FormState {
   salaryMax: string;
   currency: Currency;
   totalRounds: number;
+  iconUrl: string;
   notes: string;
 }
 
@@ -328,6 +343,7 @@ const EMPTY_FORM: FormState = {
   salaryMax: "",
   currency: "GBP",
   totalRounds: 3,
+  iconUrl: "",
   notes: "",
 };
 
@@ -427,6 +443,31 @@ function AddModal({ onClose, onSave }: { onClose: () => void; onSave: (item: Tra
                 placeholder="e.g. London, UK or Remote"
                 className="w-full border border-slate-200 rounded-xl pl-9 pr-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-slate-300"
               />
+            </div>
+          </div>
+
+          {/* Icon URL */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+              Icon / Logo URL <span className="font-normal text-slate-400">(optional — paste a direct image link)</span>
+            </label>
+            <div className="flex gap-2 items-center">
+              <div className="relative flex-1">
+                <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <input
+                  value={form.iconUrl}
+                  onChange={(e) => set("iconUrl", e.target.value)}
+                  placeholder="https://example.com/logo.png"
+                  className="w-full border border-slate-200 rounded-xl pl-9 pr-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-slate-300"
+                />
+              </div>
+              {form.iconUrl && (
+                <div className="w-10 h-10 rounded-xl border border-slate-200 bg-white overflow-hidden flex items-center justify-center flex-shrink-0 shadow-sm">
+                  <img src={form.iconUrl} alt="preview" className="w-8 h-8 object-contain" onError={(e) => (e.currentTarget.style.display = "none")} />
+                </div>
+              )}
             </div>
           </div>
 
@@ -575,6 +616,300 @@ function AddModal({ onClose, onSave }: { onClose: () => void; onSave: (item: Tra
   );
 }
 
+// ─── Edit Modal ───────────────────────────────────────────────────────────────
+
+function EditModal({
+  item,
+  onClose,
+  onSave,
+}: {
+  item: TrackerItem;
+  onClose: () => void;
+  onSave: (updated: TrackerItem) => void;
+}) {
+  const [form, setForm] = useState<FormState>({
+    company: item.company,
+    jobTitle: item.jobTitle,
+    location: item.location,
+    employmentType: item.employmentType,
+    salaryMin: item.salaryMin != null ? String(item.salaryMin) : "",
+    salaryMax: item.salaryMax != null ? String(item.salaryMax) : "",
+    currency: item.currency,
+    totalRounds: item.totalRounds,
+    iconUrl: item.iconUrl ?? "",
+    notes: item.notes,
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const set = <K extends keyof FormState>(key: K, val: FormState[K]) =>
+    setForm((f) => ({ ...f, [key]: val }));
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/tracker/${item.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          company: form.company.trim(),
+          jobTitle: form.jobTitle.trim(),
+          location: form.location.trim(),
+          employmentType: form.employmentType,
+          salaryMin: form.salaryMin ? parseInt(form.salaryMin) : null,
+          salaryMax: form.salaryMax ? parseInt(form.salaryMax) : null,
+          currency: form.currency,
+          totalRounds: form.totalRounds,
+          iconUrl: form.iconUrl.trim(),
+          notes: form.notes.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error ?? "Failed to save"); return; }
+      onSave(data);
+    } catch {
+      setError("Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const previewStages = buildStages(form.totalRounds);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
+      <div
+        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="sticky top-0 bg-white border-b border-slate-100 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
+          <div className="flex items-center gap-3">
+            <CompanyLogo company={form.company || item.company} iconUrl={form.iconUrl} />
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Edit role</h2>
+              <p className="text-xs text-slate-400 mt-0.5">{item.company} · {item.jobTitle}</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors"
+          >
+            <svg className="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+          {/* Company + Job Title */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Company *</label>
+              <input
+                value={form.company}
+                onChange={(e) => set("company", e.target.value)}
+                required
+                className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Job Title *</label>
+              <input
+                value={form.jobTitle}
+                onChange={(e) => set("jobTitle", e.target.value)}
+                required
+                className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              />
+            </div>
+          </div>
+
+          {/* Location */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Location</label>
+            <div className="relative">
+              <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <input
+                value={form.location}
+                onChange={(e) => set("location", e.target.value)}
+                placeholder="e.g. London, UK or Remote"
+                className="w-full border border-slate-200 rounded-xl pl-9 pr-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-slate-300"
+              />
+            </div>
+          </div>
+
+          {/* Icon URL */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+              Icon / Logo URL <span className="font-normal text-slate-400">(optional)</span>
+            </label>
+            <div className="flex gap-2 items-center">
+              <div className="relative flex-1">
+                <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <input
+                  value={form.iconUrl}
+                  onChange={(e) => set("iconUrl", e.target.value)}
+                  placeholder="https://example.com/logo.png"
+                  className="w-full border border-slate-200 rounded-xl pl-9 pr-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-slate-300"
+                />
+              </div>
+              {form.iconUrl && (
+                <div className="w-10 h-10 rounded-xl border border-slate-200 bg-white overflow-hidden flex items-center justify-center flex-shrink-0 shadow-sm">
+                  <img src={form.iconUrl} alt="preview" className="w-8 h-8 object-contain" onError={(e) => (e.currentTarget.style.display = "none")} />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Employment Type */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Employment Type</label>
+            <div className="flex gap-2">
+              {(["full-time", "contract"] as EmploymentType[]).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => set("employmentType", t)}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border transition-all ${
+                    form.employmentType === t
+                      ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                      : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  {t === "full-time" ? "Full-time" : "Contract"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Salary Range */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Expected Salary Range</label>
+            <div className="flex gap-2 items-center">
+              <select
+                value={form.currency}
+                onChange={(e) => set("currency", e.target.value as Currency)}
+                className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-700 font-medium"
+              >
+                {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <input
+                type="number"
+                value={form.salaryMin}
+                onChange={(e) => set("salaryMin", e.target.value)}
+                placeholder="Min"
+                min={0}
+                className="flex-1 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-slate-300"
+              />
+              <span className="text-slate-300 font-light">–</span>
+              <input
+                type="number"
+                value={form.salaryMax}
+                onChange={(e) => set("salaryMax", e.target.value)}
+                placeholder="Max"
+                min={0}
+                className="flex-1 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-slate-300"
+              />
+            </div>
+          </div>
+
+          {/* Interview Rounds */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Number of Interview Rounds</label>
+            <div className="flex gap-2">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => set("totalRounds", n)}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold border transition-all ${
+                    form.totalRounds === n
+                      ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                      : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            <div className="mt-3 bg-slate-50 rounded-xl px-4 py-3 border border-slate-100">
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Pipeline preview</p>
+              <div className="flex items-center gap-1">
+                {previewStages.map((s, i) => (
+                  <div key={s.key} className="flex items-center gap-1 flex-1 last:flex-none">
+                    <div className="flex flex-col items-center gap-0.5">
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                        i === 0 ? "border-blue-600 bg-blue-600" : "border-slate-200 bg-white"
+                      }`}>
+                        {i === 0 && <span className="w-1.5 h-1.5 rounded-full bg-white block" />}
+                      </div>
+                      <span className="text-[9px] text-slate-500 whitespace-nowrap">{s.label}</span>
+                    </div>
+                    {i < previewStages.length - 1 && (
+                      <div className="h-0.5 flex-1 bg-slate-200 rounded-full mb-3" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+              Notes <span className="font-normal text-slate-400">(optional)</span>
+            </label>
+            <textarea
+              value={form.notes}
+              onChange={(e) => set("notes", e.target.value)}
+              placeholder="Recruiter name, next interview date, anything relevant..."
+              rows={3}
+              className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-slate-300 resize-none"
+            />
+          </div>
+
+          {error && (
+            <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3.5 py-2.5">{error}</p>
+          )}
+
+          <div className="flex gap-2 pt-1 pb-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-3 rounded-xl text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-1 py-3 rounded-xl text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-sm disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {saving ? (
+                <>
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Saving...
+                </>
+              ) : "Save Changes"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 type FilterKey = "all" | "screening" | "interviewing" | "offer" | "rejected";
@@ -583,6 +918,7 @@ export default function Home() {
   const [items, setItems] = useState<TrackerItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [editItem, setEditItem] = useState<TrackerItem | null>(null);
   const [filter, setFilter] = useState<FilterKey>("all");
 
   useEffect(() => {
@@ -718,6 +1054,7 @@ export default function Home() {
               item={item}
               onStageChange={handleStageChange}
               onDelete={handleDelete}
+              onEdit={setEditItem}
             />
           ))}
         </div>
@@ -727,6 +1064,17 @@ export default function Home() {
         <AddModal
           onClose={() => setShowModal(false)}
           onSave={(item) => { setItems((prev) => [item, ...prev]); setShowModal(false); }}
+        />
+      )}
+
+      {editItem && (
+        <EditModal
+          item={editItem}
+          onClose={() => setEditItem(null)}
+          onSave={(updated) => {
+            setItems((prev) => prev.map((i) => i.id === updated.id ? updated : i));
+            setEditItem(null);
+          }}
         />
       )}
     </div>
