@@ -20,6 +20,7 @@ interface TrackerItem {
   currentStage: string; // "screening" | "round_1" | "round_2" | ... | "offer" | "rejected"
   iconUrl: string;
   notes: string;
+  nextInterviewDate: string;
   createdAt: string;
 }
 
@@ -356,6 +357,16 @@ function TrackerCard({
         </div>
       )}
 
+      {/* Next Interview Date */}
+      {item.nextInterviewDate && (
+        <div className="mt-3 flex items-center gap-2 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
+          <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          Next interview: {new Date(item.nextInterviewDate + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
+        </div>
+      )}
+
       {/* Notes */}
       {item.notes && (
         <p className="mt-3 text-xs text-slate-500 bg-slate-50 rounded-xl px-3 py-2 leading-relaxed border border-slate-100">
@@ -379,6 +390,7 @@ interface FormState {
   totalRounds: number;
   iconUrl: string;
   notes: string;
+  nextInterviewDate: string;
 }
 
 const EMPTY_FORM: FormState = {
@@ -392,6 +404,7 @@ const EMPTY_FORM: FormState = {
   totalRounds: 3,
   iconUrl: "",
   notes: "",
+  nextInterviewDate: "",
 };
 
 function AddModal({ onClose, onSave }: { onClose: () => void; onSave: (item: TrackerItem) => void }) {
@@ -615,6 +628,19 @@ function AddModal({ onClose, onSave }: { onClose: () => void; onSave: (item: Tra
             </div>
           </div>
 
+          {/* Next Interview Date */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+              Next Interview Date <span className="font-normal text-slate-400">(optional)</span>
+            </label>
+            <input
+              type="date"
+              value={form.nextInterviewDate}
+              onChange={(e) => set("nextInterviewDate", e.target.value)}
+              className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-700"
+            />
+          </div>
+
           {/* Notes */}
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1.5">
@@ -623,7 +649,7 @@ function AddModal({ onClose, onSave }: { onClose: () => void; onSave: (item: Tra
             <textarea
               value={form.notes}
               onChange={(e) => set("notes", e.target.value)}
-              placeholder="Recruiter name, next interview date, anything relevant..."
+              placeholder="Recruiter name, anything relevant..."
               rows={3}
               className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-slate-300 resize-none"
             />
@@ -685,6 +711,7 @@ function EditModal({
     totalRounds: item.totalRounds,
     iconUrl: item.iconUrl ?? "",
     notes: item.notes,
+    nextInterviewDate: item.nextInterviewDate ?? "",
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -711,6 +738,7 @@ function EditModal({
           totalRounds: form.totalRounds,
           iconUrl: form.iconUrl.trim(),
           notes: form.notes.trim(),
+          nextInterviewDate: form.nextInterviewDate,
         }),
       });
       const data = await res.json();
@@ -909,6 +937,19 @@ function EditModal({
             </div>
           </div>
 
+          {/* Next Interview Date */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+              Next Interview Date <span className="font-normal text-slate-400">(optional)</span>
+            </label>
+            <input
+              type="date"
+              value={form.nextInterviewDate}
+              onChange={(e) => set("nextInterviewDate", e.target.value)}
+              className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-700"
+            />
+          </div>
+
           {/* Notes */}
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1.5">
@@ -917,7 +958,7 @@ function EditModal({
             <textarea
               value={form.notes}
               onChange={(e) => set("notes", e.target.value)}
-              placeholder="Recruiter name, next interview date, anything relevant..."
+              placeholder="Recruiter name, anything relevant..."
               rows={3}
               className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder:text-slate-300 resize-none"
             />
@@ -1019,9 +1060,8 @@ export default function Home() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
             </span>
-            Interview Pipeline
+            Pipeline
           </h1>
-          <p className="text-sm text-slate-500 mt-1">Track every role from screening to offer.</p>
         </div>
         <button
           onClick={() => setShowModal(true)}
