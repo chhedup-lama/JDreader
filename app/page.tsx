@@ -1072,7 +1072,7 @@ export default function Home() {
   }
 
   const filterFns: Record<FilterKey, (i: TrackerItem) => boolean> = {
-    all:         () => true,
+    all:         (i) => i.currentStage !== "rejected",
     screening:   (i) => i.currentStage === "screening",
     interviewing:(i) => i.currentStage.startsWith("round_"),
     offer:       (i) => i.currentStage === "offer",
