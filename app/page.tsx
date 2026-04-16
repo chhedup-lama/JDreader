@@ -4,6 +4,12 @@ import { useEffect, useState } from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+interface SubmissionReminder {
+  id: number;
+  company: string;
+  submissionDate: string; // YYYY-MM-DD
+}
+
 type EmploymentType = "full-time" | "contract";
 type Currency = "GBP" | "USD" | "EUR" | "AUD" | "CAD";
 
@@ -1018,6 +1024,184 @@ function EditModal({
   );
 }
 
+// ─── Submission Reminders ─────────────────────────────────────────────────────
+
+function SubmissionsSection() {
+  const [reminders, setReminders] = useState<SubmissionReminder[]>([]);
+  const [company, setCompany] = useState("");
+  const [date, setDate] = useState("");
+  const [adding, setAdding] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/reminders")
+      .then((r) => r.json())
+      .then((data) => setReminders(Array.isArray(data) ? data : []));
+  }, []);
+
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault();
+    if (!company.trim() || !date) return;
+    setAdding(true);
+    const res = await fetch("/api/reminders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ company, submissionDate: date }),
+    });
+    const created = await res.json();
+    setReminders((prev) => [...prev, created].sort((a, b) => a.submissionDate.localeCompare(b.submissionDate)));
+    setCompany("");
+    setDate("");
+    setAdding(false);
+  }
+
+  async function handleDelete(id: number) {
+    setReminders((prev) => prev.filter((r) => r.id !== id));
+    await fetch(`/api/reminders/${id}`, { method: "DELETE" });
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  function formatDate(d: string) {
+    const date = new Date(d + "T00:00:00");
+    return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  }
+
+  function daysUntil(d: string) {
+    const diff = Math.ceil((new Date(d + "T00:00:00").getTime() - new Date(today + "T00:00:00").getTime()) / 86400000);
+    return diff;
+  }
+
+  if (reminders.length === 0 && !company && !date) {
+    return (
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+            <span className="w-6 h-6 bg-amber-100 rounded-lg flex items-center justify-center">
+              <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </span>
+            To Submit
+          </h2>
+        </div>
+        <form onSubmit={handleAdd} className="flex gap-2">
+          <input
+            value={company}
+            onChange={(e) => setCompany(e.target.value)}
+            placeholder="Company"
+            className="flex-1 text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent placeholder:text-slate-300"
+          />
+          <input
+            type="date"
+            value={date}
+            min={today}
+            onChange={(e) => setDate(e.target.value)}
+            className="text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent text-slate-600"
+          />
+          <button
+            type="submit"
+            disabled={adding || !company.trim() || !date}
+            className="text-sm font-semibold px-4 py-2 rounded-xl bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            Add
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+          <span className="w-6 h-6 bg-amber-100 rounded-lg flex items-center justify-center">
+            <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </span>
+          To Submit
+          {reminders.length > 0 && (
+            <span className="text-xs font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+              {reminders.length}
+            </span>
+          )}
+        </h2>
+      </div>
+
+      {/* Reminder list */}
+      {reminders.length > 0 && (
+        <ul className="space-y-2 mb-4">
+          {reminders.map((r) => {
+            const days = daysUntil(r.submissionDate);
+            const overdue = days < 0;
+            const urgent = days >= 0 && days <= 2;
+            return (
+              <li
+                key={r.id}
+                className={`flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border text-sm ${
+                  overdue
+                    ? "bg-red-50 border-red-200"
+                    : urgent
+                    ? "bg-amber-50 border-amber-200"
+                    : "bg-slate-50 border-slate-200"
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className={`font-semibold truncate ${overdue ? "text-red-700" : "text-slate-800"}`}>
+                    {r.company}
+                  </span>
+                  <span className={`text-xs flex-shrink-0 ${overdue ? "text-red-500" : urgent ? "text-amber-600" : "text-slate-400"}`}>
+                    {overdue
+                      ? `${Math.abs(days)}d overdue`
+                      : days === 0
+                      ? "Today"
+                      : days === 1
+                      ? "Tomorrow"
+                      : formatDate(r.submissionDate)}
+                  </span>
+                </div>
+                <button
+                  onClick={() => handleDelete(r.id)}
+                  className="flex-shrink-0 text-slate-300 hover:text-red-400 transition-colors"
+                  title="Dismiss"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {/* Add form */}
+      <form onSubmit={handleAdd} className="flex gap-2">
+        <input
+          value={company}
+          onChange={(e) => setCompany(e.target.value)}
+          placeholder="Company"
+          className="flex-1 text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent placeholder:text-slate-300"
+        />
+        <input
+          type="date"
+          value={date}
+          min={today}
+          onChange={(e) => setDate(e.target.value)}
+          className="text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent text-slate-600"
+        />
+        <button
+          type="submit"
+          disabled={adding || !company.trim() || !date}
+          className="text-sm font-semibold px-4 py-2 rounded-xl bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          Add
+        </button>
+      </form>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 type FilterKey = "all" | "screening" | "interviewing" | "offer" | "rejected";
@@ -1113,6 +1297,9 @@ export default function Home() {
           Track New Role
         </button>
       </div>
+
+      {/* Submission reminders */}
+      <SubmissionsSection />
 
       {/* Stats */}
       {items.length > 0 && <SummaryBar items={items} />}

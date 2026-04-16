@@ -76,6 +76,13 @@ model ApplicationPack {
   createdAt       DateTime   @default(now())
 }
 
+model SubmissionReminder {
+  id             Int      @id @default(autoincrement())
+  company        String
+  submissionDate String   // YYYY-MM-DD
+  createdAt      DateTime @default(now())
+}
+
 model InterviewTracker {
   id             Int      @id @default(autoincrement())
   company        String
