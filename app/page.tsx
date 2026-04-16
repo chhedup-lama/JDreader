@@ -109,9 +109,13 @@ function CompanyLogo({ company, iconUrl }: { company: string; iconUrl?: string }
     ? extractDomain(iconUrl)
     : companyDomain(company);
 
+  const isDirectImage = /\.(svg|png|jpg|jpeg|webp|ico)(\?.*)?$/i.test(iconUrl?.trim() ?? "");
+
   const sources = [
+    ...(isDirectImage ? [iconUrl!.trim()] : []),
     `https://logo.clearbit.com/${domain}`,
-    `https://www.google.com/s2/favicons?domain=${domain}&sz=128`,
+    `https://www.${domain}/favicon.ico`,
+    `https://${domain}/favicon.ico`,
   ];
 
   const [idx, setIdx] = useState(0);
