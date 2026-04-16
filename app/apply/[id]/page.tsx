@@ -69,6 +69,70 @@ function ATSScoreRing({ score }: { score: number }) {
   );
 }
 
+function ATSReport({ score, report }: { score: number; report: GenerationResult["atsReport"] }) {
+  return (
+    <div className="space-y-4">
+      <ATSScoreRing score={score} />
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+          <div className="text-xs font-semibold text-emerald-600 uppercase tracking-wider mb-3">
+            Matched Keywords ({report.matchedKeywords.length})
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {report.matchedKeywords.map((k) => (
+              <span key={k} className="bg-white text-emerald-700 text-xs font-medium px-2.5 py-1 rounded-lg border border-emerald-200">
+                {k}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+          <div className="text-xs font-semibold text-red-600 uppercase tracking-wider mb-3">
+            Missing Keywords ({report.missingKeywords.length})
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {report.missingKeywords.map((k) => (
+              <span key={k} className="bg-white text-red-700 text-xs font-medium px-2.5 py-1 rounded-lg border border-red-200">
+                {k}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {report.weakSections.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <div className="text-xs font-semibold text-amber-600 uppercase tracking-wider mb-3">Weak Sections</div>
+          <ul className="space-y-2">
+            {report.weakSections.map((s) => (
+              <li key={s} className="text-sm text-amber-800 flex gap-2 items-start">
+                <span className="mt-0.5">⚠</span>
+                <span>{s}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {report.suggestions.length > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <div className="text-xs font-semibold text-blue-600 uppercase tracking-wider mb-3">Suggestions</div>
+          <ul className="space-y-2">
+            {report.suggestions.map((s) => (
+              <li key={s} className="text-sm text-blue-800 flex gap-2 items-start">
+                <span className="text-blue-400 mt-0.5 font-bold">→</span>
+                <span>{s}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ResultsPage() {
   const { id } = useParams<{ id: string }>();
   const [job, setJob] = useState<JobData | null>(null);
@@ -76,6 +140,35 @@ export default function ResultsPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>("ats");
   const [error, setError] = useState("");
+
+  // ATS retest state
+  const [retestCv, setRetestCv] = useState("");
+  const [retestScore, setRetestScore] = useState<number | null>(null);
+  const [retestReport, setRetestReport] = useState<GenerationResult["atsReport"] | null>(null);
+  const [retesting, setRetesting] = useState(false);
+  const [retestError, setRetestError] = useState("");
+
+  async function handleRetest() {
+    if (!retestCv.trim()) return;
+    setRetesting(true);
+    setRetestError("");
+    setRetestScore(null);
+    setRetestReport(null);
+    try {
+      const res = await fetch(`/api/apply/${id}/retest-ats`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cvText: retestCv }),
+      });
+      const data = await res.json();
+      if (data.error) setRetestError(data.error);
+      else { setRetestScore(data.atsScore); setRetestReport(data.atsReport); }
+    } catch {
+      setRetestError("Something went wrong. Please try again.");
+    } finally {
+      setRetesting(false);
+    }
+  }
 
   useEffect(() => {
     fetch(`/api/apply/${id}`)
@@ -235,64 +328,73 @@ export default function ResultsPage() {
 
           {/* ── ATS Report ── */}
           {activeTab === "ats" && (
-            <div className="space-y-5">
-              <ATSScoreRing score={pack.atsScore} />
+            <div className="space-y-6">
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
-                  <div className="text-xs font-semibold text-emerald-600 uppercase tracking-wider mb-3">
-                    Matched Keywords ({pack.atsReport.matchedKeywords.length})
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {pack.atsReport.matchedKeywords.map((k) => (
-                      <span key={k} className="bg-white text-emerald-700 text-xs font-medium px-2.5 py-1 rounded-lg border border-emerald-200">
-                        {k}
-                      </span>
-                    ))}
-                  </div>
+              {/* Original results */}
+              <div className="space-y-5">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Original Score</h3>
                 </div>
-
-                <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-                  <div className="text-xs font-semibold text-red-600 uppercase tracking-wider mb-3">
-                    Missing Keywords ({pack.atsReport.missingKeywords.length})
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {pack.atsReport.missingKeywords.map((k) => (
-                      <span key={k} className="bg-white text-red-700 text-xs font-medium px-2.5 py-1 rounded-lg border border-red-200">
-                        {k}
-                      </span>
-                    ))}
-                  </div>
-                </div>
+                <ATSReport score={pack.atsScore} report={pack.atsReport} />
               </div>
 
-              {pack.atsReport.weakSections.length > 0 && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                  <div className="text-xs font-semibold text-amber-600 uppercase tracking-wider mb-3">Weak Sections</div>
-                  <ul className="space-y-2">
-                    {pack.atsReport.weakSections.map((s) => (
-                      <li key={s} className="text-sm text-amber-800 flex gap-2 items-start">
-                        <span className="mt-0.5">⚠</span>
-                        <span>{s}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+              {/* Divider */}
+              <div className="border-t border-slate-200" />
 
-              {pack.atsReport.suggestions.length > 0 && (
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                  <div className="text-xs font-semibold text-blue-600 uppercase tracking-wider mb-3">Suggestions</div>
-                  <ul className="space-y-2">
-                    {pack.atsReport.suggestions.map((s) => (
-                      <li key={s} className="text-sm text-blue-800 flex gap-2 items-start">
-                        <span className="text-blue-400 mt-0.5 font-bold">→</span>
-                        <span>{s}</span>
-                      </li>
-                    ))}
-                  </ul>
+              {/* Retest section */}
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">Re-test with reworked CV</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">Paste your updated CV below to see how your new score compares.</p>
                 </div>
-              )}
+                <textarea
+                  value={retestCv}
+                  onChange={(e) => setRetestCv(e.target.value)}
+                  placeholder="Paste your reworked CV here..."
+                  rows={8}
+                  className="w-full text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 resize-y focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-300"
+                />
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleRetest}
+                    disabled={retesting || !retestCv.trim()}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {retesting ? (
+                      <>
+                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                        Analysing...
+                      </>
+                    ) : "Run ATS Test"}
+                  </button>
+                  {retestError && <p className="text-xs text-red-500">{retestError}</p>}
+                </div>
+
+                {retestScore !== null && retestReport && (
+                  <div className="space-y-5 pt-2">
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">New Score</h3>
+                      {retestScore > pack.atsScore ? (
+                        <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                          +{retestScore - pack.atsScore} pts
+                        </span>
+                      ) : retestScore < pack.atsScore ? (
+                        <span className="text-xs font-semibold text-red-500 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">
+                          {retestScore - pack.atsScore} pts
+                        </span>
+                      ) : (
+                        <span className="text-xs font-semibold text-slate-400 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">
+                          No change
+                        </span>
+                      )}
+                    </div>
+                    <ATSReport score={retestScore} report={retestReport} />
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

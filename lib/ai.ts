@@ -249,6 +249,55 @@ ${outputSpec}`,
   }
 }
 
+// ─── Re-test ATS from raw CV text ─────────────────────────────────────────────
+export async function retestATSFromText(
+  cvText: string,
+  features: ExtractedFeatures,
+  jdText: string
+): Promise<{ atsScore: number; atsReport: GenerationResult["atsReport"] }> {
+  const message = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 4096,
+    messages: [
+      {
+        role: "user",
+        content: `You are an ATS expert. Analyse how well the candidate's reworked CV matches the job description.
+
+REWORKED CV:
+${cvText}
+
+JOB DESCRIPTION:
+${jdText}
+
+EXTRACTED JD FEATURES:
+Role: ${features.role}
+Required Skills: ${features.requiredSkills.join(", ")}
+ATS Keywords: ${features.atsKeywords.join(", ")}
+Domain: ${features.domainContext}
+
+Return ONLY a raw JSON object — no markdown, no explanation:
+{
+  "atsScore": <integer 0-100>,
+  "atsReport": {
+    "matchedKeywords": ["keywords from the JD already present in the CV"],
+    "missingKeywords": ["important JD keywords still absent from the CV"],
+    "weakSections": ["areas where the CV is still thin relative to JD requirements"],
+    "suggestions": ["specific, actionable improvements still needed"]
+  }
+}`,
+      },
+    ],
+  });
+
+  const raw = message.content[0].type === "text" ? message.content[0].text : "";
+  try {
+    const parsed = JSON.parse(extractJSON(raw));
+    return cleanResult(parsed) as { atsScore: number; atsReport: GenerationResult["atsReport"] };
+  } catch {
+    throw new Error(`ATS retest returned invalid JSON. Raw response: ${raw.slice(0, 300)}`);
+  }
+}
+
 // ─── Call 2: Generate application pack — ATS first, then docs ────────────────
 export async function generateApplicationPack(
   profile: MasterProfileData,
