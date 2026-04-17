@@ -70,6 +70,11 @@ function ATSScoreRing({ score }: { score: number }) {
 }
 
 function ATSReport({ score, report }: { score: number; report: GenerationResult["atsReport"] }) {
+  const matched = report?.matchedKeywords ?? [];
+  const missing = report?.missingKeywords ?? [];
+  const weak = report?.weakSections ?? [];
+  const suggestions = report?.suggestions ?? [];
+
   return (
     <div className="space-y-4">
       <ATSScoreRing score={score} />
@@ -77,10 +82,10 @@ function ATSReport({ score, report }: { score: number; report: GenerationResult[
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
           <div className="text-xs font-semibold text-emerald-600 uppercase tracking-wider mb-3">
-            Matched Keywords ({report.matchedKeywords.length})
+            Matched Keywords ({matched.length})
           </div>
           <div className="flex flex-wrap gap-1.5">
-            {report.matchedKeywords.map((k) => (
+            {matched.map((k) => (
               <span key={k} className="bg-white text-emerald-700 text-xs font-medium px-2.5 py-1 rounded-lg border border-emerald-200">
                 {k}
               </span>
@@ -90,10 +95,10 @@ function ATSReport({ score, report }: { score: number; report: GenerationResult[
 
         <div className="bg-red-50 border border-red-200 rounded-xl p-4">
           <div className="text-xs font-semibold text-red-600 uppercase tracking-wider mb-3">
-            Missing Keywords ({report.missingKeywords.length})
+            Missing Keywords ({missing.length})
           </div>
           <div className="flex flex-wrap gap-1.5">
-            {report.missingKeywords.map((k) => (
+            {missing.map((k) => (
               <span key={k} className="bg-white text-red-700 text-xs font-medium px-2.5 py-1 rounded-lg border border-red-200">
                 {k}
               </span>
@@ -102,11 +107,11 @@ function ATSReport({ score, report }: { score: number; report: GenerationResult[
         </div>
       </div>
 
-      {report.weakSections.length > 0 && (
+      {weak.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
           <div className="text-xs font-semibold text-amber-600 uppercase tracking-wider mb-3">Weak Sections</div>
           <ul className="space-y-2">
-            {report.weakSections.map((s) => (
+            {weak.map((s) => (
               <li key={s} className="text-sm text-amber-800 flex gap-2 items-start">
                 <span className="mt-0.5">⚠</span>
                 <span>{s}</span>
@@ -116,11 +121,11 @@ function ATSReport({ score, report }: { score: number; report: GenerationResult[
         </div>
       )}
 
-      {report.suggestions.length > 0 && (
+      {suggestions.length > 0 && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
           <div className="text-xs font-semibold text-blue-600 uppercase tracking-wider mb-3">Suggestions</div>
           <ul className="space-y-2">
-            {report.suggestions.map((s) => (
+            {suggestions.map((s) => (
               <li key={s} className="text-sm text-blue-800 flex gap-2 items-start">
                 <span className="text-blue-400 mt-0.5 font-bold">→</span>
                 <span>{s}</span>
@@ -255,8 +260,8 @@ export default function ResultsPage() {
           </h1>
         </div>
         <div className="flex-shrink-0 sm:ml-4 flex flex-col items-end gap-2">
-          <ATSScoreRing score={pack.afterAtsScore ?? pack.atsScore} />
-          {pack.afterAtsScore != null && pack.afterAtsScore !== pack.atsScore && (
+          <ATSScoreRing score={pack.afterAtsScore > 0 ? pack.afterAtsScore : pack.atsScore} />
+          {pack.afterAtsScore > 0 && pack.afterAtsScore !== pack.atsScore && (
             <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
               pack.afterAtsScore > pack.atsScore
                 ? "text-emerald-600 bg-emerald-50 border-emerald-200"
@@ -339,34 +344,43 @@ export default function ResultsPage() {
           {activeTab === "ats" && (
             <div className="space-y-6">
 
-              {/* Before / After comparison */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
-                  <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Before Generation</div>
-                  <ATSScoreRing score={pack.atsScore} />
-                </div>
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider">After Generation</span>
-                    {pack.afterAtsScore != null && pack.afterAtsScore !== pack.atsScore && (
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
-                        pack.afterAtsScore > pack.atsScore
-                          ? "text-emerald-600 bg-emerald-50 border-emerald-200"
-                          : "text-red-500 bg-red-50 border-red-200"
-                      }`}>
-                        {pack.afterAtsScore > pack.atsScore ? "+" : ""}{pack.afterAtsScore - pack.atsScore} pts
-                      </span>
-                    )}
+              {pack.afterAtsScore > 0 ? (
+                <>
+                  {/* Before / After comparison */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                      <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Before Generation</div>
+                      <ATSScoreRing score={pack.atsScore} />
+                    </div>
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider">After Generation</span>
+                        {pack.afterAtsScore !== pack.atsScore && (
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
+                            pack.afterAtsScore > pack.atsScore
+                              ? "text-emerald-600 bg-emerald-50 border-emerald-200"
+                              : "text-red-500 bg-red-50 border-red-200"
+                          }`}>
+                            {pack.afterAtsScore > pack.atsScore ? "+" : ""}{pack.afterAtsScore - pack.atsScore} pts
+                          </span>
+                        )}
+                      </div>
+                      <ATSScoreRing score={pack.afterAtsScore} />
+                    </div>
                   </div>
-                  <ATSScoreRing score={pack.afterAtsScore ?? pack.atsScore} />
-                </div>
-              </div>
 
-              {/* Full after-generation report */}
-              <div className="space-y-5">
-                <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">After Generation — Full Report</h3>
-                <ATSReport score={pack.afterAtsScore ?? pack.atsScore} report={pack.afterAtsReport ?? pack.atsReport} />
-              </div>
+                  {/* Full after-generation report */}
+                  <div className="space-y-5">
+                    <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">After Generation — Full Report</h3>
+                    <ATSReport score={pack.afterAtsScore} report={pack.afterAtsReport} />
+                  </div>
+                </>
+              ) : (
+                /* Old packs — just show the original report */
+                <div className="space-y-5">
+                  <ATSReport score={pack.atsScore} report={pack.atsReport} />
+                </div>
+              )}
 
               {/* Divider */}
               <div className="border-t border-slate-200" />
