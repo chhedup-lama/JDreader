@@ -298,6 +298,21 @@ Return ONLY a raw JSON object — no markdown, no explanation:
   }
 }
 
+function buildGeneratedCvText(
+  cvTitle: string,
+  cvExperiences: import("./types").CVExperience[],
+  cvSkills: import("./types").SkillData[]
+): string {
+  const experiencesText = cvExperiences
+    .map(
+      (exp) =>
+        `${exp.role} at ${exp.company} (${exp.startDate} – ${exp.endDate})\n${exp.bullets.map((b) => `• ${b}`).join("\n")}`
+    )
+    .join("\n\n");
+  const skillsText = cvSkills.map((s) => `${s.category}: ${s.items.join(", ")}`).join("\n");
+  return `${cvTitle}\n\nExperience:\n${experiencesText}\n\nSkills:\n${skillsText}`;
+}
+
 // ─── Call 2: Generate application pack — ATS first, then docs ────────────────
 export async function generateApplicationPack(
   profile: MasterProfileData,
@@ -305,11 +320,19 @@ export async function generateApplicationPack(
   jdText: string,
   options: GenerationOptions
 ): Promise<GenerationResult> {
-  // Step 1: analyse profile vs JD to produce ATS insights
+  // Step 1: analyse original profile vs JD (before score)
   const { atsScore, atsReport } = await analyzeATS(profile, features, jdText);
 
   // Step 2: generate CV and cover documents, informed by ATS findings
   const docs = await generateDocuments(profile, features, jdText, options, atsReport);
 
-  return { ...docs, atsScore, atsReport };
+  // Step 3: analyse tailored CV vs JD (after score)
+  const generatedCvText = buildGeneratedCvText(docs.cvTitle, docs.cvExperiences, docs.cvSkills);
+  const { atsScore: afterAtsScore, atsReport: afterAtsReport } = await retestATSFromText(
+    generatedCvText,
+    features,
+    jdText
+  );
+
+  return { ...docs, atsScore, atsReport, afterAtsScore, afterAtsReport };
 }

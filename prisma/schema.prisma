@@ -71,6 +71,8 @@ model ApplicationPack {
   coverLetter     String     @default("")
   atsScore        Int        @default(0)
   atsReport       String     @default("{}") // JSON
+  afterAtsScore   Int        @default(0)
+  afterAtsReport  String     @default("{}") // JSON
   hrEmail         String     @default("")
   linkedinMessage String     @default("")
   createdAt       DateTime   @default(now())

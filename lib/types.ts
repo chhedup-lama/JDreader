@@ -64,8 +64,10 @@ export interface GenerationResult {
   cvExperiences: CVExperience[];
   cvSkills: SkillData[];
   coverLetter: string;
-  atsScore: number;
-  atsReport: ATSReport;
+  atsScore: number;        // before: original profile vs JD
+  atsReport: ATSReport;   // before
+  afterAtsScore: number;  // after: tailored CV vs JD
+  afterAtsReport: ATSReport;
   hrEmail: string;
   linkedinMessage: string;
 }

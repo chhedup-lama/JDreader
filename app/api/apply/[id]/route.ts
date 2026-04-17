@@ -37,6 +37,8 @@ export async function GET(
           coverLetter: pack.coverLetter,
           atsScore: pack.atsScore,
           atsReport: JSON.parse(pack.atsReport),
+          afterAtsScore: pack.afterAtsScore,
+          afterAtsReport: JSON.parse(pack.afterAtsReport),
           hrEmail: pack.hrEmail,
           linkedinMessage: pack.linkedinMessage,
         }

@@ -254,8 +254,17 @@ export default function ResultsPage() {
             )}
           </h1>
         </div>
-        <div className="flex-shrink-0 sm:ml-4">
-          <ATSScoreRing score={pack.atsScore} />
+        <div className="flex-shrink-0 sm:ml-4 flex flex-col items-end gap-2">
+          <ATSScoreRing score={pack.afterAtsScore ?? pack.atsScore} />
+          {pack.afterAtsScore != null && pack.afterAtsScore !== pack.atsScore && (
+            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+              pack.afterAtsScore > pack.atsScore
+                ? "text-emerald-600 bg-emerald-50 border-emerald-200"
+                : "text-red-500 bg-red-50 border-red-200"
+            }`}>
+              {pack.afterAtsScore > pack.atsScore ? "+" : ""}{pack.afterAtsScore - pack.atsScore} pts after tailoring
+            </span>
+          )}
         </div>
       </div>
 
@@ -330,12 +339,33 @@ export default function ResultsPage() {
           {activeTab === "ats" && (
             <div className="space-y-6">
 
-              {/* Original results */}
-              <div className="space-y-5">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Original Score</h3>
+              {/* Before / After comparison */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                  <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Before Generation</div>
+                  <ATSScoreRing score={pack.atsScore} />
                 </div>
-                <ATSReport score={pack.atsScore} report={pack.atsReport} />
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider">After Generation</span>
+                    {pack.afterAtsScore != null && pack.afterAtsScore !== pack.atsScore && (
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
+                        pack.afterAtsScore > pack.atsScore
+                          ? "text-emerald-600 bg-emerald-50 border-emerald-200"
+                          : "text-red-500 bg-red-50 border-red-200"
+                      }`}>
+                        {pack.afterAtsScore > pack.atsScore ? "+" : ""}{pack.afterAtsScore - pack.atsScore} pts
+                      </span>
+                    )}
+                  </div>
+                  <ATSScoreRing score={pack.afterAtsScore ?? pack.atsScore} />
+                </div>
+              </div>
+
+              {/* Full after-generation report */}
+              <div className="space-y-5">
+                <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">After Generation — Full Report</h3>
+                <ATSReport score={pack.afterAtsScore ?? pack.atsScore} report={pack.afterAtsReport ?? pack.atsReport} />
               </div>
 
               {/* Divider */}
@@ -377,19 +407,22 @@ export default function ResultsPage() {
                   <div className="space-y-5 pt-2">
                     <div className="flex items-center gap-3">
                       <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">New Score</h3>
-                      {retestScore > pack.atsScore ? (
-                        <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                          +{retestScore - pack.atsScore} pts
-                        </span>
-                      ) : retestScore < pack.atsScore ? (
-                        <span className="text-xs font-semibold text-red-500 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">
-                          {retestScore - pack.atsScore} pts
-                        </span>
-                      ) : (
-                        <span className="text-xs font-semibold text-slate-400 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">
-                          No change
-                        </span>
-                      )}
+                      {(() => {
+                        const base = pack.afterAtsScore ?? pack.atsScore;
+                        return retestScore > base ? (
+                          <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                            +{retestScore - base} pts
+                          </span>
+                        ) : retestScore < base ? (
+                          <span className="text-xs font-semibold text-red-500 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">
+                            {retestScore - base} pts
+                          </span>
+                        ) : (
+                          <span className="text-xs font-semibold text-slate-400 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">
+                            No change
+                          </span>
+                        );
+                      })()}
                     </div>
                     <ATSReport score={retestScore} report={retestReport} />
                   </div>
