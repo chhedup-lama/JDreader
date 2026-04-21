@@ -1028,6 +1028,7 @@ function EditModal({
 
 function SubmissionsSection() {
   const [reminders, setReminders] = useState<SubmissionReminder[]>([]);
+  const [showForm, setShowForm] = useState(false);
   const [company, setCompany] = useState("");
   const [date, setDate] = useState("");
   const [adding, setAdding] = useState(false);
@@ -1052,6 +1053,7 @@ function SubmissionsSection() {
     setCompany("");
     setDate("");
     setAdding(false);
+    setShowForm(false);
   }
 
   async function handleDelete(id: number) {
@@ -1061,59 +1063,23 @@ function SubmissionsSection() {
 
   const today = new Date().toISOString().slice(0, 10);
 
-  function formatDate(d: string) {
-    const date = new Date(d + "T00:00:00");
-    return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-  }
-
   function daysUntil(d: string) {
-    const diff = Math.ceil((new Date(d + "T00:00:00").getTime() - new Date(today + "T00:00:00").getTime()) / 86400000);
-    return diff;
+    return Math.ceil((new Date(d + "T00:00:00").getTime() - new Date(today + "T00:00:00").getTime()) / 86400000);
   }
 
-  if (reminders.length === 0 && !company && !date) {
-    return (
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-            <span className="w-6 h-6 bg-amber-100 rounded-lg flex items-center justify-center">
-              <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </span>
-            To Submit
-          </h2>
-        </div>
-        <form onSubmit={handleAdd} className="flex gap-2">
-          <input
-            value={company}
-            onChange={(e) => setCompany(e.target.value)}
-            placeholder="Company"
-            className="flex-1 text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent placeholder:text-slate-300"
-          />
-          <input
-            type="date"
-            value={date}
-            min={today}
-            onChange={(e) => setDate(e.target.value)}
-            className="text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent text-slate-600"
-          />
-          <button
-            type="submit"
-            disabled={adding || !company.trim() || !date}
-            className="text-sm font-semibold px-4 py-2 rounded-xl bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            Add
-          </button>
-        </form>
-      </div>
-    );
+  function chipLabel(d: string) {
+    const days = daysUntil(d);
+    if (days < 0) return `${Math.abs(days)}d overdue`;
+    if (days === 0) return "Today";
+    if (days === 1) return "Tomorrow";
+    return new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
   }
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+    <div className="bg-white border border-slate-200 rounded-2xl px-5 py-4 shadow-sm">
+      {/* Header row */}
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2 flex-shrink-0">
           <span className="w-6 h-6 bg-amber-100 rounded-lg flex items-center justify-center">
             <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1126,78 +1092,93 @@ function SubmissionsSection() {
             </span>
           )}
         </h2>
-      </div>
 
-      {/* Reminder list */}
-      {reminders.length > 0 && (
-        <ul className="space-y-2 mb-4">
+        {/* Chips + add button inline */}
+        <div className="flex items-center gap-2 flex-wrap flex-1 justify-end">
           {reminders.map((r) => {
             const days = daysUntil(r.submissionDate);
             const overdue = days < 0;
             const urgent = days >= 0 && days <= 2;
             return (
-              <li
+              <span
                 key={r.id}
-                className={`flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border text-sm ${
+                className={`inline-flex items-center gap-1.5 text-xs font-semibold pl-3 pr-1.5 py-1 rounded-full border ${
                   overdue
-                    ? "bg-red-50 border-red-200"
+                    ? "bg-red-50 border-red-200 text-red-700"
                     : urgent
-                    ? "bg-amber-50 border-amber-200"
-                    : "bg-slate-50 border-slate-200"
+                    ? "bg-amber-50 border-amber-200 text-amber-700"
+                    : "bg-slate-50 border-slate-200 text-slate-700"
                 }`}
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <span className={`font-semibold truncate ${overdue ? "text-red-700" : "text-slate-800"}`}>
-                    {r.company}
-                  </span>
-                  <span className={`text-xs flex-shrink-0 ${overdue ? "text-red-500" : urgent ? "text-amber-600" : "text-slate-400"}`}>
-                    {overdue
-                      ? `${Math.abs(days)}d overdue`
-                      : days === 0
-                      ? "Today"
-                      : days === 1
-                      ? "Tomorrow"
-                      : formatDate(r.submissionDate)}
-                  </span>
-                </div>
+                {r.company}
+                <span className={`font-normal ${overdue ? "text-red-400" : urgent ? "text-amber-500" : "text-slate-400"}`}>
+                  · {chipLabel(r.submissionDate)}
+                </span>
                 <button
                   onClick={() => handleDelete(r.id)}
-                  className="flex-shrink-0 text-slate-300 hover:text-red-400 transition-colors"
+                  className={`ml-0.5 w-4 h-4 rounded-full flex items-center justify-center transition-colors ${
+                    overdue ? "hover:bg-red-200 text-red-300 hover:text-red-600" : "hover:bg-slate-200 text-slate-300 hover:text-slate-600"
+                  }`}
                   title="Dismiss"
                 >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
-              </li>
+              </span>
             );
           })}
-        </ul>
-      )}
 
-      {/* Add form */}
-      <form onSubmit={handleAdd} className="flex gap-2">
-        <input
-          value={company}
-          onChange={(e) => setCompany(e.target.value)}
-          placeholder="Company"
-          className="flex-1 text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent placeholder:text-slate-300"
-        />
-        <input
-          type="date"
-          value={date}
-          min={today}
-          onChange={(e) => setDate(e.target.value)}
-          className="text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent text-slate-600"
-        />
-        <button
-          type="submit"
-          disabled={adding || !company.trim() || !date}
-          className="text-sm font-semibold px-4 py-2 rounded-xl bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          {!showForm && (
+            <button
+              onClick={() => setShowForm(true)}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-slate-400 hover:text-amber-600 border border-dashed border-slate-200 hover:border-amber-300 rounded-full px-3 py-1 transition-colors"
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              Add deadline
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Compact add form — only shown when open */}
+      {showForm && (
+        <form
+          onSubmit={handleAdd}
+          className="mt-3 flex items-center gap-2 pt-3 border-t border-slate-100"
         >
-          Add
-        </button>
-      </form>
+          <input
+            autoFocus
+            value={company}
+            onChange={(e) => setCompany(e.target.value)}
+            placeholder="Company name"
+            className="w-44 text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent placeholder:text-slate-300"
+          />
+          <input
+            type="date"
+            value={date}
+            min={today}
+            onChange={(e) => setDate(e.target.value)}
+            className="text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent text-slate-600"
+          />
+          <button
+            type="submit"
+            disabled={adding || !company.trim() || !date}
+            className="text-sm font-semibold px-4 py-1.5 rounded-xl bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            {adding ? "Adding…" : "Add"}
+          </button>
+          <button
+            type="button"
+            onClick={() => { setShowForm(false); setCompany(""); setDate(""); }}
+            className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
+          >
+            Cancel
+          </button>
+        </form>
+      )}
     </div>
   );
 }

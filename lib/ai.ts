@@ -98,7 +98,7 @@ ${profile.skills.map((s) => `- ${s.category}: ${s.items.join(", ")}`).join("\n")
 
   const message = await client.messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 4096,
+    max_tokens: 8192,
     messages: [
       {
         role: "user",
@@ -257,7 +257,7 @@ export async function retestATSFromText(
 ): Promise<{ atsScore: number; atsReport: GenerationResult["atsReport"] }> {
   const message = await client.messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 4096,
+    max_tokens: 8192,
     messages: [
       {
         role: "user",
