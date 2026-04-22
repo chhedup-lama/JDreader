@@ -63,14 +63,16 @@ function formatSalary(min: number | null, max: number | null, currency: Currency
 }
 
 function stageColor(key: string) {
-  if (key === "screening") return { dot: "bg-blue-500", text: "text-blue-700", bg: "bg-blue-50 border-blue-200" };
-  if (key === "offer")     return { dot: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200" };
-  if (key === "rejected")  return { dot: "bg-red-400", text: "text-red-600", bg: "bg-red-50 border-red-200" };
+  if (key === "screening")      return { dot: "bg-blue-500",   text: "text-blue-700",   bg: "bg-blue-50 border-blue-200" };
+  if (key === "offer")          return { dot: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200" };
+  if (key === "rejected")       return { dot: "bg-red-400",    text: "text-red-600",    bg: "bg-red-50 border-red-200" };
+  if (key === "low_conversion") return { dot: "bg-amber-400",  text: "text-amber-600",  bg: "bg-amber-50 border-amber-200" };
   // round_N
   return { dot: "bg-violet-500", text: "text-violet-700", bg: "bg-violet-50 border-violet-200" };
 }
 
 function stageLabel(key: string, totalRounds: number) {
+  if (key === "low_conversion") return "Low Conversion";
   return buildStages(totalRounds).find((s) => s.key === key)?.label ?? key;
 }
 
@@ -174,6 +176,23 @@ function StatusPipeline({
     );
   }
 
+  if (currentStage === "low_conversion") {
+    return (
+      <div className="flex items-center gap-2 mt-4">
+        <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-200">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+          Low Conversion
+        </span>
+        <button
+          onClick={() => onChange("screening")}
+          className="text-xs text-slate-400 hover:text-slate-600 underline underline-offset-2 transition-colors"
+        >
+          Reopen
+        </button>
+      </div>
+    );
+  }
+
   const stages = buildStages(totalRounds);
   const currentIdx = stages.findIndex((s) => s.key === currentStage);
 
@@ -227,7 +246,7 @@ function StatusPipeline({
 function SummaryBar({ items }: { items: TrackerItem[] }) {
   const [open, setOpen] = useState(false);
 
-  const active  = items.filter(i => i.currentStage !== "offer" && i.currentStage !== "rejected").length;
+  const active  = items.filter(i => i.currentStage !== "offer" && i.currentStage !== "rejected" && i.currentStage !== "low_conversion").length;
   const inRound = items.filter(i => i.currentStage.startsWith("round_")).length;
   const offers  = items.filter(i => i.currentStage === "offer").length;
 
@@ -279,9 +298,8 @@ function TrackerCard({
   onDelete: (id: number) => void;
   onEdit: (item: TrackerItem) => void;
 }) {
-  const { dot, text, bg } = stageColor(item.currentStage);
+  const [showArchiveMenu, setShowArchiveMenu] = useState(false);
   const salary = formatSalary(item.salaryMin, item.salaryMax, item.currency);
-  const label  = stageLabel(item.currentStage, item.totalRounds);
 
   return (
     <div className="group bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-lg hover:border-slate-300 transition-all duration-200">
@@ -355,15 +373,36 @@ function TrackerCard({
       {/* Pipeline */}
       <StatusPipeline item={item} onChange={(stage) => onStageChange(item.id, stage)} />
 
-      {/* Reject button */}
-      {item.currentStage !== "rejected" && item.currentStage !== "offer" && (
-        <div className="mt-3 flex justify-end">
+      {/* Archive button */}
+      {item.currentStage !== "rejected" && item.currentStage !== "low_conversion" && item.currentStage !== "offer" && (
+        <div className="mt-3 flex justify-end relative">
           <button
-            onClick={() => onStageChange(item.id, "rejected")}
-            className="text-[11px] text-slate-300 hover:text-red-400 transition-colors"
+            onClick={() => setShowArchiveMenu((v) => !v)}
+            className="text-[11px] text-slate-300 hover:text-slate-500 transition-colors"
           >
-            Mark as rejected
+            Archive
           </button>
+          {showArchiveMenu && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setShowArchiveMenu(false)} />
+              <div className="absolute bottom-6 right-0 z-20 bg-white border border-slate-200 rounded-xl shadow-lg py-1 min-w-[175px]">
+                <button
+                  onClick={() => { onStageChange(item.id, "rejected"); setShowArchiveMenu(false); }}
+                  className="w-full text-left text-xs px-3 py-2 hover:bg-red-50 text-slate-600 hover:text-red-600 transition-colors flex items-center gap-2"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-400 flex-shrink-0" />
+                  Rejected
+                </button>
+                <button
+                  onClick={() => { onStageChange(item.id, "low_conversion"); setShowArchiveMenu(false); }}
+                  className="w-full text-left text-xs px-3 py-2 hover:bg-amber-50 text-slate-600 hover:text-amber-600 transition-colors flex items-center gap-2"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
+                  Low Conversion
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -1185,7 +1224,7 @@ function SubmissionsSection() {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-type FilterKey = "all" | "screening" | "interviewing" | "offer" | "rejected";
+type FilterKey = "all" | "screening" | "interviewing" | "offer" | "rejected" | "low_conversion";
 
 export default function Home() {
   const [items, setItems] = useState<TrackerItem[]>([]);
@@ -1237,21 +1276,23 @@ export default function Home() {
   }
 
   const filterFns: Record<FilterKey, (i: TrackerItem) => boolean> = {
-    all:         (i) => i.currentStage !== "rejected",
-    screening:   (i) => i.currentStage === "screening",
-    interviewing:(i) => i.currentStage.startsWith("round_"),
-    offer:       (i) => i.currentStage === "offer",
-    rejected:    (i) => i.currentStage === "rejected",
+    all:            (i) => i.currentStage !== "rejected" && i.currentStage !== "low_conversion",
+    screening:      (i) => i.currentStage === "screening",
+    interviewing:   (i) => i.currentStage.startsWith("round_"),
+    offer:          (i) => i.currentStage === "offer",
+    rejected:       (i) => i.currentStage === "rejected",
+    low_conversion: (i) => i.currentStage === "low_conversion",
   };
 
   const filtered = items.filter(filterFns[filter]);
 
   const filterTabs: { key: FilterKey; label: string; count: number }[] = [
-    { key: "all",          label: "All",          count: items.length },
-    { key: "screening",    label: "Screening",    count: items.filter(filterFns.screening).length },
-    { key: "interviewing", label: "Interviewing", count: items.filter(filterFns.interviewing).length },
-    { key: "offer",        label: "Offers",       count: items.filter(filterFns.offer).length },
-    { key: "rejected",     label: "Rejected",     count: items.filter(filterFns.rejected).length },
+    { key: "all",            label: "All",            count: items.filter(filterFns.all).length },
+    { key: "screening",      label: "Screening",      count: items.filter(filterFns.screening).length },
+    { key: "interviewing",   label: "Interviewing",   count: items.filter(filterFns.interviewing).length },
+    { key: "offer",          label: "Offers",         count: items.filter(filterFns.offer).length },
+    { key: "rejected",       label: "Rejected",       count: items.filter(filterFns.rejected).length },
+    { key: "low_conversion", label: "Low Conversion", count: items.filter(filterFns.low_conversion).length },
   ];
 
   return (
