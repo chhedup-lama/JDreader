@@ -13,6 +13,135 @@ interface JobData {
 
 type Tab = "cv" | "ats" | "coverLetter" | "hrEmail" | "linkedin";
 
+// ─── CV HTML builder (for print/PDF download) ────────────────────────────────
+
+function esc(s: string) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function buildCVHtml(pack: GenerationResult): string {
+  const expRows = pack.cvExperiences.map((exp) => `
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:5pt;border-collapse:collapse;">
+      <tr>
+        <td style="font-weight:bold;font-size:10.5pt;width:38%;vertical-align:bottom;font-family:Calibri,Arial,sans-serif;">${esc(exp.role)}</td>
+        <td style="font-weight:bold;font-size:10.5pt;text-align:center;width:37%;vertical-align:bottom;font-family:Calibri,Arial,sans-serif;">${esc(exp.company)}</td>
+        <td style="font-weight:bold;font-size:10.5pt;text-align:right;width:25%;vertical-align:bottom;white-space:nowrap;font-family:Calibri,Arial,sans-serif;">${esc(exp.startDate)} &#8211; ${esc(exp.endDate)}</td>
+      </tr>
+    </table>
+    <ul style="margin:2pt 0 3pt 16pt;padding:0;">
+      ${exp.bullets.map((b) => `<li style="font-size:10.5pt;margin-bottom:1.5pt;line-height:1.3;font-family:Calibri,Arial,sans-serif;">${esc(b)}</li>`).join("\n")}
+    </ul>
+  `).join("");
+
+  const skillRows = pack.cvSkills.map((s) => `
+    <p style="margin:0 0 5pt 0;font-size:10.5pt;line-height:1.35;font-family:Calibri,Arial,sans-serif;">
+      <strong style="font-family:Calibri,Arial,sans-serif;">${esc(s.category)}:</strong> ${esc(s.items.join(", "))}
+    </p>
+  `).join("");
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Chhedup Lama - CV</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: Calibri, Arial, sans-serif; font-size: 10.5pt; line-height: 1.3; color: #000; }
+  @page { size: A4; margin: 1.2cm 1.5cm; }
+  @media print {
+    @page { margin: 1.2cm 1.5cm; }
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    tr, li { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<table width="100%" cellpadding="0" cellspacing="0"
+  style="border:1.5pt solid #000;margin-bottom:5pt;border-collapse:collapse;">
+  <tr>
+    <td style="width:33%;vertical-align:middle;padding:5pt 8pt;">
+      <div style="font-size:12pt;font-weight:bold;font-family:Calibri,Arial,sans-serif;">Chhedup Lama</div>
+      <div style="font-size:10.5pt;font-weight:bold;font-family:Calibri,Arial,sans-serif;">Dublin, Ireland (Stamp 4)</div>
+    </td>
+    <td style="width:34%;text-align:center;vertical-align:middle;padding:5pt 8pt;">
+      <a href="https://www.linkedin.com/in/chhedup-lama"
+        style="display:inline-block;width:20pt;height:20pt;background:#0A66C2;border-radius:3pt;
+               color:white;text-align:center;line-height:20pt;font-weight:bold;
+               font-size:9pt;margin:0 2pt;text-decoration:none;font-family:Arial,sans-serif;">in</a>
+    </td>
+    <td style="width:33%;text-align:right;vertical-align:middle;padding:5pt 8pt;">
+      <div style="font-size:10.5pt;font-family:Calibri,Arial,sans-serif;">+353 899678861</div>
+      <div style="font-size:10.5pt;font-family:Calibri,Arial,sans-serif;">chhedup.lama@gmail.com</div>
+    </td>
+  </tr>
+</table>
+
+<!-- Tagline -->
+<p style="font-style:italic;text-align:center;font-size:11pt;font-family:Calibri,Arial,sans-serif;margin-bottom:4pt;">${esc(pack.cvTitle)}</p>
+
+<!-- Experience entries -->
+${expRows}
+
+<!-- Bottom 2-col: Education | Skills -->
+<table width="100%" cellpadding="0" cellspacing="0"
+  style="margin-top:8pt;border-top:1.5pt solid #000;border-collapse:collapse;">
+  <tr>
+    <td style="width:36%;vertical-align:top;padding-top:6pt;padding-right:14pt;">
+      <div style="font-size:13pt;font-weight:bold;font-family:Calibri,Arial,sans-serif;margin-bottom:5pt;">&#9400; EDUCATION</div>
+      <div style="font-size:11pt;font-weight:bold;font-family:Calibri,Arial,sans-serif;">B. Tech, Computer Engineering</div>
+      <div style="font-size:10.5pt;font-weight:bold;color:#555;font-family:Calibri,Arial,sans-serif;">Delhi College of Engineering</div>
+      <div style="font-size:10.5pt;font-family:Calibri,Arial,sans-serif;margin-bottom:8pt;">2007, Delhi</div>
+      <div style="font-size:11pt;font-weight:bold;font-family:Calibri,Arial,sans-serif;">MBA</div>
+      <div style="font-size:10.5pt;font-weight:bold;color:#555;font-family:Calibri,Arial,sans-serif;">Indian Institute of Management</div>
+      <div style="font-size:10.5pt;font-family:Calibri,Arial,sans-serif;">2013, Bangalore</div>
+    </td>
+    <td style="width:64%;vertical-align:top;padding-top:6pt;">
+      <div style="font-size:13pt;font-weight:bold;font-family:Calibri,Arial,sans-serif;margin-bottom:5pt;">&#128736; Skills &amp;Tools</div>
+      ${skillRows}
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>`;
+}
+
+function downloadCVAsPDF(pack: GenerationResult) {
+  const html = buildCVHtml(pack);
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const iframe = document.createElement("iframe");
+  iframe.style.cssText = "position:fixed;width:0;height:0;opacity:0;pointer-events:none;";
+  iframe.src = url;
+  document.body.appendChild(iframe);
+  iframe.onload = () => {
+    iframe.contentWindow?.print();
+    setTimeout(() => {
+      document.body.removeChild(iframe);
+      URL.revokeObjectURL(url);
+    }, 2000);
+  };
+}
+
+// ─── Buttons ──────────────────────────────────────────────────────────────────
+
+function DownloadCVButton({ pack }: { pack: GenerationResult }) {
+  return (
+    <button
+      onClick={() => downloadCVAsPDF(pack)}
+      className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all bg-white border-slate-200 text-slate-600 hover:border-blue-300 hover:text-blue-600"
+      title="Opens print dialog — choose Save as PDF"
+    >
+      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+      </svg>
+      Download CV
+    </button>
+  );
+}
+
 function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false);
   function copy() {
@@ -304,7 +433,10 @@ export default function ResultsPage() {
                   <h2 className="text-lg font-bold text-slate-900">{pack.cvTitle}</h2>
                   <p className="text-xs text-slate-400 mt-1">Tailored headline for this role</p>
                 </div>
-                <CopyButton text={cvText} label="Copy All" />
+                <div className="flex items-center gap-2">
+                  <CopyButton text={cvText} label="Copy All" />
+                  <DownloadCVButton pack={pack} />
+                </div>
               </div>
 
               <div className="space-y-5">
