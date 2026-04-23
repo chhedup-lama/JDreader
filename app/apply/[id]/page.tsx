@@ -25,18 +25,20 @@ function esc(s: string) {
 
 // Trim a bullet to ≤ 2 lines (~90 chars/line at Calibri 10.5pt on A4 with indent)
 function trim2Lines(text: string, charsPerLine = 90): string {
+  // Strip trailing full stop first
+  const t = text.replace(/\.\s*$/, "");
   const max = charsPerLine * 2;
-  if (text.length <= max) return text;
-  const zone = text.slice(0, max + 15);
+  if (t.length <= max) return t;
+  const zone = t.slice(0, max + 15);
   const breakAt = Math.max(
     zone.lastIndexOf(", ", max),
     zone.lastIndexOf("; ", max),
     zone.lastIndexOf(" and ", max),
     zone.lastIndexOf(" with ", max),
   );
-  if (breakAt > max * 0.65) return text.slice(0, breakAt).trimEnd();
-  const sp = text.lastIndexOf(" ", max);
-  return sp > max * 0.7 ? text.slice(0, sp) : text.slice(0, max);
+  if (breakAt > max * 0.65) return t.slice(0, breakAt).trimEnd();
+  const sp = t.lastIndexOf(" ", max);
+  return sp > max * 0.7 ? t.slice(0, sp) : t.slice(0, max);
 }
 
 // Cap skills to avoid overflowing the bottom section
