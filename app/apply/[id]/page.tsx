@@ -125,7 +125,169 @@ function downloadCVAsPDF(pack: GenerationResult) {
   };
 }
 
+// ─── Word (.docx) builder ─────────────────────────────────────────────────────
+
+async function downloadCVAsDocx(pack: GenerationResult) {
+  const {
+    Document, Paragraph, TextRun, Table, TableRow, TableCell,
+    Packer, AlignmentType, BorderStyle, WidthType, VerticalAlign,
+  } = await import("docx");
+
+  const NIL  = { style: BorderStyle.NONE,   size: 0, color: "FFFFFF" } as const;
+  const SOLID= { style: BorderStyle.SINGLE, size: 8, color: "000000" } as const;
+  const NO_B = { top: NIL, bottom: NIL, left: NIL, right: NIL };
+
+  function r(text: string, opts: { bold?: boolean; italic?: boolean; size?: number } = {}) {
+    return new TextRun({ text, font: "Calibri", bold: opts.bold, italics: opts.italic, size: opts.size ?? 21 });
+  }
+  function mkP(
+    runs: TextRun[],
+    opts: { align?: (typeof AlignmentType)[keyof typeof AlignmentType]; before?: number; after?: number } = {}
+  ) {
+    return new Paragraph({ children: runs, alignment: opts.align, spacing: { before: opts.before ?? 0, after: opts.after ?? 40 } });
+  }
+
+  // ── Header (boxed border) ────────────────────────────────────────────────
+  const headerTable = new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    borders: { top: SOLID, bottom: SOLID, left: SOLID, right: SOLID, insideHorizontal: NIL, insideVertical: NIL },
+    rows: [new TableRow({ children: [
+      new TableCell({
+        width: { size: 33, type: WidthType.PERCENTAGE }, borders: NO_B,
+        margins: { top: 80, bottom: 80, left: 100, right: 60 },
+        children: [
+          mkP([r("Chhedup Lama", { bold: true, size: 24 })]),
+          mkP([r("Dublin, Ireland (Stamp 4)", { bold: true })], { after: 0 }),
+        ],
+      }),
+      new TableCell({
+        width: { size: 34, type: WidthType.PERCENTAGE }, borders: NO_B,
+        verticalAlign: VerticalAlign.CENTER,
+        children: [mkP([r("LinkedIn", { bold: true, size: 18 })], { align: AlignmentType.CENTER })],
+      }),
+      new TableCell({
+        width: { size: 33, type: WidthType.PERCENTAGE }, borders: NO_B,
+        margins: { top: 80, bottom: 80, left: 60, right: 100 },
+        verticalAlign: VerticalAlign.CENTER,
+        children: [
+          mkP([r("+353 899678861")], { align: AlignmentType.RIGHT }),
+          mkP([r("chhedup.lama@gmail.com")], { align: AlignmentType.RIGHT, after: 0 }),
+        ],
+      }),
+    ]})],
+  });
+
+  // ── Tagline ──────────────────────────────────────────────────────────────
+  const tagline = mkP([r(pack.cvTitle, { italic: true, size: 22 })], {
+    align: AlignmentType.CENTER, before: 60, after: 60,
+  });
+
+  // ── Experience blocks ────────────────────────────────────────────────────
+  const expBlocks: (Table | Paragraph)[] = [];
+  for (const exp of pack.cvExperiences) {
+    expBlocks.push(new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      borders: { top: NIL, bottom: NIL, left: NIL, right: NIL, insideHorizontal: NIL, insideVertical: NIL },
+      rows: [new TableRow({ children: [
+        new TableCell({
+          width: { size: 38, type: WidthType.PERCENTAGE }, borders: NO_B,
+          children: [mkP([r(exp.role, { bold: true })], { before: 80, after: 0 })],
+        }),
+        new TableCell({
+          width: { size: 37, type: WidthType.PERCENTAGE }, borders: NO_B,
+          children: [mkP([r(exp.company, { bold: true })], { align: AlignmentType.CENTER, before: 80, after: 0 })],
+        }),
+        new TableCell({
+          width: { size: 25, type: WidthType.PERCENTAGE }, borders: NO_B,
+          children: [mkP([r(`${exp.startDate} – ${exp.endDate}`, { bold: true })], { align: AlignmentType.RIGHT, before: 80, after: 0 })],
+        }),
+      ]})],
+    }));
+    for (const bullet of exp.bullets) {
+      expBlocks.push(new Paragraph({
+        children: [r(bullet)],
+        bullet: { level: 0 },
+        spacing: { before: 20, after: 20 },
+      }));
+    }
+  }
+
+  // ── Divider + bottom 2-col (Education | Skills) ──────────────────────────
+  const divider = new Paragraph({
+    children: [],
+    border: { top: { color: "000000", space: 4, style: BorderStyle.SINGLE, size: 8 } },
+    spacing: { before: 120, after: 0 },
+  });
+
+  const eduChildren = [
+    mkP([r("EDUCATION", { bold: true, size: 26 })], { before: 80, after: 80 }),
+    mkP([r("B. Tech, Computer Engineering", { bold: true, size: 22 })], { after: 20 }),
+    mkP([r("Delhi College of Engineering", { bold: true })], { after: 20 }),
+    mkP([r("2007, Delhi")], { after: 120 }),
+    mkP([r("MBA", { bold: true, size: 22 })], { after: 20 }),
+    mkP([r("Indian Institute of Management", { bold: true })], { after: 20 }),
+    mkP([r("2013, Bangalore")], { after: 0 }),
+  ];
+
+  const skillChildren = [
+    mkP([r("Skills & Tools", { bold: true, size: 26 })], { before: 80, after: 80 }),
+    ...pack.cvSkills.map((s) =>
+      new Paragraph({
+        children: [r(`${s.category}: `, { bold: true }), r(s.items.join(", "))],
+        spacing: { before: 0, after: 80 },
+      })
+    ),
+  ];
+
+  const bottomTable = new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    borders: { top: NIL, bottom: NIL, left: NIL, right: NIL, insideHorizontal: NIL, insideVertical: NIL },
+    rows: [new TableRow({ children: [
+      new TableCell({ width: { size: 36, type: WidthType.PERCENTAGE }, borders: NO_B, children: eduChildren }),
+      new TableCell({ width: { size: 64, type: WidthType.PERCENTAGE }, borders: NO_B, margins: { left: 200 }, children: skillChildren }),
+    ]})],
+  });
+
+  // ── Assemble ─────────────────────────────────────────────────────────────
+  const doc = new Document({
+    styles: {
+      default: { document: { run: { font: "Calibri", size: 21 } } },
+    },
+    sections: [{
+      properties: { page: { margin: { top: 680, bottom: 680, left: 851, right: 851 } } },
+      children: [headerTable, tagline, ...expBlocks, divider, bottomTable],
+    }],
+  });
+
+  const blob = await Packer.toBlob(doc);
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "Chhedup_Lama_CV.docx";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 // ─── Buttons ──────────────────────────────────────────────────────────────────
+
+function DownloadWordButton({ pack }: { pack: GenerationResult }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <button
+      onClick={async () => { setBusy(true); try { await downloadCVAsDocx(pack); } finally { setBusy(false); } }}
+      disabled={busy}
+      className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all bg-white border-slate-200 text-slate-600 hover:border-indigo-300 hover:text-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
+      title="Download as Word document (.docx)"
+    >
+      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+      {busy ? "Preparing…" : "Word"}
+    </button>
+  );
+}
 
 function DownloadCVButton({ pack }: { pack: GenerationResult }) {
   return (
@@ -436,6 +598,7 @@ export default function ResultsPage() {
                 <div className="flex items-center gap-2">
                   <CopyButton text={cvText} label="Copy All" />
                   <DownloadCVButton pack={pack} />
+                  <DownloadWordButton pack={pack} />
                 </div>
               </div>
 
