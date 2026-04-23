@@ -117,24 +117,26 @@ function buildCVHtml(pack: GenerationResult): string {
 <!-- Experience entries -->
 ${expRows}
 
-<!-- Bottom 2-col: Education | Skills -->
-<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:6pt;border-top:1.5pt solid #000;border-collapse:collapse;">
-  <tr>
-    <td style="width:36%;vertical-align:top;padding-top:5pt;padding-right:12pt;">
-      <div style="font-size:13pt;font-weight:bold;font-family:Calibri,Arial,sans-serif;margin-bottom:4pt;">&#9400; EDUCATION</div>
-      <div style="font-size:11pt;font-weight:bold;font-family:Calibri,Arial,sans-serif;">B. Tech, Computer Engineering</div>
-      <div style="font-size:10.5pt;font-weight:bold;color:#555;font-family:Calibri,Arial,sans-serif;">Delhi College of Engineering</div>
-      <div style="font-size:10.5pt;font-family:Calibri,Arial,sans-serif;margin-bottom:7pt;">2007, Delhi</div>
-      <div style="font-size:11pt;font-weight:bold;font-family:Calibri,Arial,sans-serif;">MBA</div>
-      <div style="font-size:10.5pt;font-weight:bold;color:#555;font-family:Calibri,Arial,sans-serif;">Indian Institute of Management</div>
-      <div style="font-size:10.5pt;font-family:Calibri,Arial,sans-serif;">2013, Bangalore</div>
-    </td>
-    <td style="width:64%;vertical-align:top;padding-top:5pt;">
-      <div style="font-size:13pt;font-weight:bold;font-family:Calibri,Arial,sans-serif;margin-bottom:4pt;">&#128736; Skills &amp;Tools</div>
-      ${skillRows}
-    </td>
-  </tr>
-</table>
+<!-- Bottom: Skills & Tools (full width) then Education (2-col degrees) -->
+<div style="margin-top:6pt;border-top:1.5pt solid #000;padding-top:5pt;">
+  <div style="font-size:13pt;font-weight:bold;font-family:Calibri,Arial,sans-serif;margin-bottom:4pt;">&#128736; Skills &amp;Tools</div>
+  ${skillRows}
+  <div style="font-size:13pt;font-weight:bold;font-family:Calibri,Arial,sans-serif;margin-top:5pt;margin-bottom:3pt;">&#9400; Education</div>
+  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+    <tr>
+      <td style="width:50%;vertical-align:top;padding-right:10pt;">
+        <div style="font-size:11pt;font-weight:bold;font-family:Calibri,Arial,sans-serif;">B. Tech, Computer Engineering</div>
+        <div style="font-size:10.5pt;font-weight:bold;color:#555;font-family:Calibri,Arial,sans-serif;">Delhi College of Engineering</div>
+        <div style="font-size:10.5pt;font-family:Calibri,Arial,sans-serif;">2007, Delhi</div>
+      </td>
+      <td style="width:50%;vertical-align:top;">
+        <div style="font-size:11pt;font-weight:bold;font-family:Calibri,Arial,sans-serif;">MBA</div>
+        <div style="font-size:10.5pt;font-weight:bold;color:#555;font-family:Calibri,Arial,sans-serif;">Indian Institute of Management</div>
+        <div style="font-size:10.5pt;font-family:Calibri,Arial,sans-serif;">2013, Bangalore</div>
+      </td>
+    </tr>
+  </table>
+</div>
 
 </body>
 </html>`;
@@ -266,17 +268,8 @@ async function downloadCVAsDocx(pack: GenerationResult) {
     spacing: { before: 100, after: 0 },
   });
 
-  const eduChildren = [
-    mkP([r("EDUCATION", { bold: true, size: 26 })], { before: 60, after: 60 }),
-    mkP([r("B. Tech, Computer Engineering", { bold: true, size: 22 })], { after: 15 }),
-    mkP([r("Delhi College of Engineering", { bold: true })], { after: 15 }),
-    mkP([r("2007, Delhi")], { after: 100 }),
-    mkP([r("MBA", { bold: true, size: 22 })], { after: 15 }),
-    mkP([r("Indian Institute of Management", { bold: true })], { after: 15 }),
-    mkP([r("2013, Bangalore")], { after: 0 }),
-  ];
-
-  const skillChildren = [
+  // ── Skills & Tools (full width) ──────────────────────────────────────────
+  const skillsSection = [
     mkP([r("Skills & Tools", { bold: true, size: 26 })], { before: 60, after: 60 }),
     ...skills.map((s) =>
       new Paragraph({
@@ -286,12 +279,29 @@ async function downloadCVAsDocx(pack: GenerationResult) {
     ),
   ];
 
-  const bottomTable = new Table({
+  // ── Education (heading + 2-col degree table) ──────────────────────────────
+  const eduHeading = mkP([r("Education", { bold: true, size: 26 })], { before: 80, after: 60 });
+
+  const eduTable = new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
     borders: { top: NIL, bottom: NIL, left: NIL, right: NIL, insideHorizontal: NIL, insideVertical: NIL },
     rows: [new TableRow({ children: [
-      new TableCell({ width: { size: 36, type: WidthType.PERCENTAGE }, borders: NO_B, children: eduChildren }),
-      new TableCell({ width: { size: 64, type: WidthType.PERCENTAGE }, borders: NO_B, margins: { left: 180 }, children: skillChildren }),
+      new TableCell({
+        width: { size: 50, type: WidthType.PERCENTAGE }, borders: NO_B,
+        children: [
+          mkP([r("B. Tech, Computer Engineering", { bold: true, size: 22 })], { after: 15 }),
+          mkP([r("Delhi College of Engineering", { bold: true })], { after: 15 }),
+          mkP([r("2007, Delhi")], { after: 0 }),
+        ],
+      }),
+      new TableCell({
+        width: { size: 50, type: WidthType.PERCENTAGE }, borders: NO_B,
+        children: [
+          mkP([r("MBA", { bold: true, size: 22 })], { after: 15 }),
+          mkP([r("Indian Institute of Management", { bold: true })], { after: 15 }),
+          mkP([r("2013, Bangalore")], { after: 0 }),
+        ],
+      }),
     ]})],
   });
 
@@ -300,7 +310,7 @@ async function downloadCVAsDocx(pack: GenerationResult) {
     styles: { default: { document: { run: { font: "Calibri", size: 21 } } } },
     sections: [{
       properties: { page: { margin: { top: 680, bottom: 680, left: 851, right: 851 } } },
-      children: [headerTable, tagline, ...expBlocks, divider, bottomTable],
+      children: [headerTable, tagline, ...expBlocks, divider, ...skillsSection, eduHeading, eduTable],
     }],
   });
 
