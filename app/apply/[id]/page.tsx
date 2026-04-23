@@ -3,6 +3,10 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { GenerationResult, ExtractedFeatures } from "@/lib/types";
+import type {
+  Table as DocxTable, Paragraph as DocxParagraph,
+  TextRun as DocxTextRun, ExternalHyperlink as DocxEH,
+} from "docx";
 
 interface JobData {
   id: number;
@@ -13,31 +17,60 @@ interface JobData {
 
 type Tab = "cv" | "ats" | "coverLetter" | "hrEmail" | "linkedin";
 
-// ─── CV HTML builder (for print/PDF download) ────────────────────────────────
+// ─── CV helpers ───────────────────────────────────────────────────────────────
 
 function esc(s: string) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+// Trim a bullet to ≤ 2 lines (~90 chars/line at Calibri 10.5pt on A4 with indent)
+function trim2Lines(text: string, charsPerLine = 90): string {
+  const max = charsPerLine * 2;
+  if (text.length <= max) return text;
+  const zone = text.slice(0, max + 15);
+  const breakAt = Math.max(
+    zone.lastIndexOf(", ", max),
+    zone.lastIndexOf("; ", max),
+    zone.lastIndexOf(" and ", max),
+    zone.lastIndexOf(" with ", max),
+  );
+  if (breakAt > max * 0.65) return text.slice(0, breakAt).trimEnd();
+  const sp = text.lastIndexOf(" ", max);
+  return sp > max * 0.7 ? text.slice(0, sp) : text.slice(0, max);
+}
+
+// Cap skills to avoid overflowing the bottom section
+function fitSkills(skills: { category: string; items: string[] }[], maxCats = 4, maxItems = 10) {
+  return skills.slice(0, maxCats).map((s) => ({ ...s, items: s.items.slice(0, maxItems) }));
+}
+
+// ─── CV HTML builder (for PDF download) ──────────────────────────────────────
+
 function buildCVHtml(pack: GenerationResult): string {
+  const skills = fitSkills(pack.cvSkills);
+
   const expRows = pack.cvExperiences.map((exp) => `
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:5pt;border-collapse:collapse;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:4pt;border-collapse:collapse;">
       <tr>
         <td style="font-weight:bold;font-size:10.5pt;width:38%;vertical-align:bottom;font-family:Calibri,Arial,sans-serif;">${esc(exp.role)}</td>
         <td style="font-weight:bold;font-size:10.5pt;text-align:center;width:37%;vertical-align:bottom;font-family:Calibri,Arial,sans-serif;">${esc(exp.company)}</td>
         <td style="font-weight:bold;font-size:10.5pt;text-align:right;width:25%;vertical-align:bottom;white-space:nowrap;font-family:Calibri,Arial,sans-serif;">${esc(exp.startDate)} &#8211; ${esc(exp.endDate)}</td>
       </tr>
     </table>
-    <ul style="margin:2pt 0 3pt 16pt;padding:0;">
-      ${exp.bullets.map((b) => `<li style="font-size:10.5pt;margin-bottom:1.5pt;line-height:1.3;font-family:Calibri,Arial,sans-serif;">${esc(b)}</li>`).join("\n")}
+    <ul style="margin:2pt 0 2pt 16pt;padding:0;">
+      ${exp.bullets.map((b) => `<li style="font-size:10.5pt;margin-bottom:1pt;line-height:1.25;text-align:justify;font-family:Calibri,Arial,sans-serif;">${esc(trim2Lines(b))}</li>`).join("\n")}
     </ul>
   `).join("");
 
-  const skillRows = pack.cvSkills.map((s) => `
-    <p style="margin:0 0 5pt 0;font-size:10.5pt;line-height:1.35;font-family:Calibri,Arial,sans-serif;">
+  const skillRows = skills.map((s) => `
+    <p style="margin:0 0 4pt 0;font-size:10.5pt;line-height:1.3;font-family:Calibri,Arial,sans-serif;">
       <strong style="font-family:Calibri,Arial,sans-serif;">${esc(s.category)}:</strong> ${esc(s.items.join(", "))}
     </p>
   `).join("");
+
+  const LI_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="#0A66C2" style="vertical-align:middle;"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>`;
+  const GH_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="#24292e" style="vertical-align:middle;"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>`;
+  const WEB_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`;
 
   return `<!DOCTYPE html>
 <html>
@@ -46,32 +79,30 @@ function buildCVHtml(pack: GenerationResult): string {
 <title>Chhedup Lama - CV</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: Calibri, Arial, sans-serif; font-size: 10.5pt; line-height: 1.3; color: #000; }
+  body { font-family: Calibri, Arial, sans-serif; font-size: 10.5pt; line-height: 1.25; color: #000; }
   @page { size: A4; margin: 1.2cm 1.5cm; }
   @media print {
     @page { margin: 1.2cm 1.5cm; }
     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    tr, li { page-break-inside: avoid; }
+    tr, li, p { page-break-inside: avoid; }
   }
 </style>
 </head>
 <body>
 
-<!-- Header -->
-<table width="100%" cellpadding="0" cellspacing="0"
-  style="border:1.5pt solid #000;margin-bottom:5pt;border-collapse:collapse;">
+<!-- Header (no border) -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:4pt;border-collapse:collapse;">
   <tr>
-    <td style="width:33%;vertical-align:middle;padding:5pt 8pt;">
+    <td style="width:33%;vertical-align:middle;padding:4pt 0;">
       <div style="font-size:12pt;font-weight:bold;font-family:Calibri,Arial,sans-serif;">Chhedup Lama</div>
       <div style="font-size:10.5pt;font-weight:bold;font-family:Calibri,Arial,sans-serif;">Dublin, Ireland (Stamp 4)</div>
     </td>
-    <td style="width:34%;text-align:center;vertical-align:middle;padding:5pt 8pt;">
-      <a href="https://www.linkedin.com/in/chhedup-lama"
-        style="display:inline-block;width:20pt;height:20pt;background:#0A66C2;border-radius:3pt;
-               color:white;text-align:center;line-height:20pt;font-weight:bold;
-               font-size:9pt;margin:0 2pt;text-decoration:none;font-family:Arial,sans-serif;">in</a>
+    <td style="width:34%;text-align:center;vertical-align:middle;padding:4pt 0;">
+      <a href="https://www.linkedin.com/in/chhedup-lama" style="margin:0 4pt;text-decoration:none;">${LI_SVG}</a>
+      <a href="https://github.com/chheduplama" style="margin:0 4pt;text-decoration:none;">${GH_SVG}</a>
+      <a href="https://chheduplama.com" style="margin:0 4pt;text-decoration:none;">${WEB_SVG}</a>
     </td>
-    <td style="width:33%;text-align:right;vertical-align:middle;padding:5pt 8pt;">
+    <td style="width:33%;text-align:right;vertical-align:middle;padding:4pt 0;">
       <div style="font-size:10.5pt;font-family:Calibri,Arial,sans-serif;">+353 899678861</div>
       <div style="font-size:10.5pt;font-family:Calibri,Arial,sans-serif;">chhedup.lama@gmail.com</div>
     </td>
@@ -79,26 +110,25 @@ function buildCVHtml(pack: GenerationResult): string {
 </table>
 
 <!-- Tagline -->
-<p style="font-style:italic;text-align:center;font-size:11pt;font-family:Calibri,Arial,sans-serif;margin-bottom:4pt;">${esc(pack.cvTitle)}</p>
+<p style="font-style:italic;text-align:center;font-size:11pt;font-family:Calibri,Arial,sans-serif;margin-bottom:3pt;">${esc(pack.cvTitle)}</p>
 
 <!-- Experience entries -->
 ${expRows}
 
 <!-- Bottom 2-col: Education | Skills -->
-<table width="100%" cellpadding="0" cellspacing="0"
-  style="margin-top:8pt;border-top:1.5pt solid #000;border-collapse:collapse;">
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:6pt;border-top:1.5pt solid #000;border-collapse:collapse;">
   <tr>
-    <td style="width:36%;vertical-align:top;padding-top:6pt;padding-right:14pt;">
-      <div style="font-size:13pt;font-weight:bold;font-family:Calibri,Arial,sans-serif;margin-bottom:5pt;">&#9400; EDUCATION</div>
+    <td style="width:36%;vertical-align:top;padding-top:5pt;padding-right:12pt;">
+      <div style="font-size:13pt;font-weight:bold;font-family:Calibri,Arial,sans-serif;margin-bottom:4pt;">&#9400; EDUCATION</div>
       <div style="font-size:11pt;font-weight:bold;font-family:Calibri,Arial,sans-serif;">B. Tech, Computer Engineering</div>
       <div style="font-size:10.5pt;font-weight:bold;color:#555;font-family:Calibri,Arial,sans-serif;">Delhi College of Engineering</div>
-      <div style="font-size:10.5pt;font-family:Calibri,Arial,sans-serif;margin-bottom:8pt;">2007, Delhi</div>
+      <div style="font-size:10.5pt;font-family:Calibri,Arial,sans-serif;margin-bottom:7pt;">2007, Delhi</div>
       <div style="font-size:11pt;font-weight:bold;font-family:Calibri,Arial,sans-serif;">MBA</div>
       <div style="font-size:10.5pt;font-weight:bold;color:#555;font-family:Calibri,Arial,sans-serif;">Indian Institute of Management</div>
       <div style="font-size:10.5pt;font-family:Calibri,Arial,sans-serif;">2013, Bangalore</div>
     </td>
-    <td style="width:64%;vertical-align:top;padding-top:6pt;">
-      <div style="font-size:13pt;font-weight:bold;font-family:Calibri,Arial,sans-serif;margin-bottom:5pt;">&#128736; Skills &amp;Tools</div>
+    <td style="width:64%;vertical-align:top;padding-top:5pt;">
+      <div style="font-size:13pt;font-weight:bold;font-family:Calibri,Arial,sans-serif;margin-bottom:4pt;">&#128736; Skills &amp;Tools</div>
       ${skillRows}
     </td>
   </tr>
@@ -131,46 +161,60 @@ async function downloadCVAsDocx(pack: GenerationResult) {
   const {
     Document, Paragraph, TextRun, Table, TableRow, TableCell,
     Packer, AlignmentType, BorderStyle, WidthType, VerticalAlign,
+    ExternalHyperlink,
   } = await import("docx");
 
-  const NIL  = { style: BorderStyle.NONE,   size: 0, color: "FFFFFF" } as const;
-  const SOLID= { style: BorderStyle.SINGLE, size: 8, color: "000000" } as const;
+  const NIL  = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" } as const;
   const NO_B = { top: NIL, bottom: NIL, left: NIL, right: NIL };
 
-  function r(text: string, opts: { bold?: boolean; italic?: boolean; size?: number } = {}) {
-    return new TextRun({ text, font: "Calibri", bold: opts.bold, italics: opts.italic, size: opts.size ?? 21 });
+  function r(text: string, opts: { bold?: boolean; italic?: boolean; size?: number; color?: string } = {}) {
+    return new TextRun({ text, font: "Calibri", bold: opts.bold, italics: opts.italic, size: opts.size ?? 21, color: opts.color });
   }
   function mkP(
-    runs: TextRun[],
+    runs: (DocxTextRun | DocxEH)[],
     opts: { align?: (typeof AlignmentType)[keyof typeof AlignmentType]; before?: number; after?: number } = {}
   ) {
-    return new Paragraph({ children: runs, alignment: opts.align, spacing: { before: opts.before ?? 0, after: opts.after ?? 40 } });
+    return new Paragraph({ children: runs, alignment: opts.align, spacing: { before: opts.before ?? 0, after: opts.after ?? 30 } });
+  }
+  function link(text: string, url: string, size = 18) {
+    return new ExternalHyperlink({
+      link: url,
+      children: [new TextRun({ text, font: "Calibri", bold: true, size, color: "0A66C2" })],
+    });
   }
 
-  // ── Header (boxed border) ────────────────────────────────────────────────
+  const skills = fitSkills(pack.cvSkills);
+
+  // ── Header (no border) ───────────────────────────────────────────────────
   const headerTable = new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
-    borders: { top: SOLID, bottom: SOLID, left: SOLID, right: SOLID, insideHorizontal: NIL, insideVertical: NIL },
+    borders: { top: NIL, bottom: NIL, left: NIL, right: NIL, insideHorizontal: NIL, insideVertical: NIL },
     rows: [new TableRow({ children: [
       new TableCell({
         width: { size: 33, type: WidthType.PERCENTAGE }, borders: NO_B,
-        margins: { top: 80, bottom: 80, left: 100, right: 60 },
+        margins: { top: 60, bottom: 60, left: 0, right: 60 },
         children: [
-          mkP([r("Chhedup Lama", { bold: true, size: 24 })]),
+          mkP([r("Chhedup Lama", { bold: true, size: 24 })], { after: 20 }),
           mkP([r("Dublin, Ireland (Stamp 4)", { bold: true })], { after: 0 }),
         ],
       }),
       new TableCell({
         width: { size: 34, type: WidthType.PERCENTAGE }, borders: NO_B,
         verticalAlign: VerticalAlign.CENTER,
-        children: [mkP([r("LinkedIn", { bold: true, size: 18 })], { align: AlignmentType.CENTER })],
+        children: [mkP([
+          link("in", "https://www.linkedin.com/in/chhedup-lama"),
+          r("  "),
+          link("GH", "https://github.com/chheduplama", 18),
+          r("  "),
+          link("www", "https://chheduplama.com", 18),
+        ], { align: AlignmentType.CENTER })],
       }),
       new TableCell({
         width: { size: 33, type: WidthType.PERCENTAGE }, borders: NO_B,
-        margins: { top: 80, bottom: 80, left: 60, right: 100 },
+        margins: { top: 60, bottom: 60, left: 60, right: 0 },
         verticalAlign: VerticalAlign.CENTER,
         children: [
-          mkP([r("+353 899678861")], { align: AlignmentType.RIGHT }),
+          mkP([r("+353 899678861")], { align: AlignmentType.RIGHT, after: 20 }),
           mkP([r("chhedup.lama@gmail.com")], { align: AlignmentType.RIGHT, after: 0 }),
         ],
       }),
@@ -179,11 +223,11 @@ async function downloadCVAsDocx(pack: GenerationResult) {
 
   // ── Tagline ──────────────────────────────────────────────────────────────
   const tagline = mkP([r(pack.cvTitle, { italic: true, size: 22 })], {
-    align: AlignmentType.CENTER, before: 60, after: 60,
+    align: AlignmentType.CENTER, before: 50, after: 50,
   });
 
   // ── Experience blocks ────────────────────────────────────────────────────
-  const expBlocks: (Table | Paragraph)[] = [];
+  const expBlocks: (DocxTable | DocxParagraph)[] = [];
   for (const exp of pack.cvExperiences) {
     expBlocks.push(new Table({
       width: { size: 100, type: WidthType.PERCENTAGE },
@@ -191,23 +235,24 @@ async function downloadCVAsDocx(pack: GenerationResult) {
       rows: [new TableRow({ children: [
         new TableCell({
           width: { size: 38, type: WidthType.PERCENTAGE }, borders: NO_B,
-          children: [mkP([r(exp.role, { bold: true })], { before: 80, after: 0 })],
+          children: [mkP([r(exp.role, { bold: true })], { before: 70, after: 0 })],
         }),
         new TableCell({
           width: { size: 37, type: WidthType.PERCENTAGE }, borders: NO_B,
-          children: [mkP([r(exp.company, { bold: true })], { align: AlignmentType.CENTER, before: 80, after: 0 })],
+          children: [mkP([r(exp.company, { bold: true })], { align: AlignmentType.CENTER, before: 70, after: 0 })],
         }),
         new TableCell({
           width: { size: 25, type: WidthType.PERCENTAGE }, borders: NO_B,
-          children: [mkP([r(`${exp.startDate} – ${exp.endDate}`, { bold: true })], { align: AlignmentType.RIGHT, before: 80, after: 0 })],
+          children: [mkP([r(`${exp.startDate} – ${exp.endDate}`, { bold: true })], { align: AlignmentType.RIGHT, before: 70, after: 0 })],
         }),
       ]})],
     }));
     for (const bullet of exp.bullets) {
       expBlocks.push(new Paragraph({
-        children: [r(bullet)],
+        children: [r(trim2Lines(bullet))],
         bullet: { level: 0 },
-        spacing: { before: 20, after: 20 },
+        alignment: AlignmentType.JUSTIFIED,
+        spacing: { before: 15, after: 15 },
       }));
     }
   }
@@ -216,25 +261,25 @@ async function downloadCVAsDocx(pack: GenerationResult) {
   const divider = new Paragraph({
     children: [],
     border: { top: { color: "000000", space: 4, style: BorderStyle.SINGLE, size: 8 } },
-    spacing: { before: 120, after: 0 },
+    spacing: { before: 100, after: 0 },
   });
 
   const eduChildren = [
-    mkP([r("EDUCATION", { bold: true, size: 26 })], { before: 80, after: 80 }),
-    mkP([r("B. Tech, Computer Engineering", { bold: true, size: 22 })], { after: 20 }),
-    mkP([r("Delhi College of Engineering", { bold: true })], { after: 20 }),
-    mkP([r("2007, Delhi")], { after: 120 }),
-    mkP([r("MBA", { bold: true, size: 22 })], { after: 20 }),
-    mkP([r("Indian Institute of Management", { bold: true })], { after: 20 }),
+    mkP([r("EDUCATION", { bold: true, size: 26 })], { before: 60, after: 60 }),
+    mkP([r("B. Tech, Computer Engineering", { bold: true, size: 22 })], { after: 15 }),
+    mkP([r("Delhi College of Engineering", { bold: true })], { after: 15 }),
+    mkP([r("2007, Delhi")], { after: 100 }),
+    mkP([r("MBA", { bold: true, size: 22 })], { after: 15 }),
+    mkP([r("Indian Institute of Management", { bold: true })], { after: 15 }),
     mkP([r("2013, Bangalore")], { after: 0 }),
   ];
 
   const skillChildren = [
-    mkP([r("Skills & Tools", { bold: true, size: 26 })], { before: 80, after: 80 }),
-    ...pack.cvSkills.map((s) =>
+    mkP([r("Skills & Tools", { bold: true, size: 26 })], { before: 60, after: 60 }),
+    ...skills.map((s) =>
       new Paragraph({
         children: [r(`${s.category}: `, { bold: true }), r(s.items.join(", "))],
-        spacing: { before: 0, after: 80 },
+        spacing: { before: 0, after: 60 },
       })
     ),
   ];
@@ -244,15 +289,13 @@ async function downloadCVAsDocx(pack: GenerationResult) {
     borders: { top: NIL, bottom: NIL, left: NIL, right: NIL, insideHorizontal: NIL, insideVertical: NIL },
     rows: [new TableRow({ children: [
       new TableCell({ width: { size: 36, type: WidthType.PERCENTAGE }, borders: NO_B, children: eduChildren }),
-      new TableCell({ width: { size: 64, type: WidthType.PERCENTAGE }, borders: NO_B, margins: { left: 200 }, children: skillChildren }),
+      new TableCell({ width: { size: 64, type: WidthType.PERCENTAGE }, borders: NO_B, margins: { left: 180 }, children: skillChildren }),
     ]})],
   });
 
   // ── Assemble ─────────────────────────────────────────────────────────────
   const doc = new Document({
-    styles: {
-      default: { document: { run: { font: "Calibri", size: 21 } } },
-    },
+    styles: { default: { document: { run: { font: "Calibri", size: 21 } } } },
     sections: [{
       properties: { page: { margin: { top: 680, bottom: 680, left: 851, right: 851 } } },
       children: [headerTable, tagline, ...expBlocks, divider, bottomTable],
@@ -261,12 +304,9 @@ async function downloadCVAsDocx(pack: GenerationResult) {
 
   const blob = await Packer.toBlob(doc);
   const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "Chhedup_Lama_CV.docx";
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  const a = document.createElement("a");
+  a.href = url; a.download = "Chhedup_Lama_CV.docx";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
