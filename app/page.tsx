@@ -574,7 +574,7 @@ function AddModal({ onClose, onSave }: { onClose: () => void; onSave: (item: Tra
           {/* Icon URL */}
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-              Company Website <span className="font-normal text-slate-400">(optional — paste the company&apos;s URL, e.g. cityswift.com)</span>
+              Company Website <span className="font-normal text-slate-400">(optional — paste the company&apos;s URL)</span>
             </label>
             <div className="flex gap-2 items-center">
               <div className="relative flex-1">
@@ -1222,6 +1222,26 @@ function SubmissionsSection() {
   );
 }
 
+function interviewDateSort(a: TrackerItem, b: TrackerItem): number {
+  const today = new Date().toISOString().split("T")[0];
+  const aDate = a.nextInterviewDate || null;
+  const bDate = b.nextInterviewDate || null;
+  const aFuture = aDate && aDate >= today;
+  const bFuture = bDate && bDate >= today;
+
+  if (aFuture && bFuture) return aDate!.localeCompare(bDate!); // soonest first
+  if (aFuture) return -1;
+  if (bFuture) return 1;
+
+  const aPast = aDate && aDate < today;
+  const bPast = bDate && bDate < today;
+  if (aPast && bPast) return bDate!.localeCompare(aDate!); // most recently past first
+  if (aPast) return -1;
+  if (bPast) return 1;
+
+  return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 type FilterKey = "all" | "screening" | "interviewing" | "offer" | "rejected" | "low_conversion";
@@ -1238,12 +1258,7 @@ export default function Home() {
       .then((r) => r.json())
       .then((data) => {
         if (Array.isArray(data)) {
-          data.sort((a, b) => {
-            if (a.nextInterviewDate && b.nextInterviewDate) return a.nextInterviewDate.localeCompare(b.nextInterviewDate);
-            if (a.nextInterviewDate) return -1;
-            if (b.nextInterviewDate) return 1;
-            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-          });
+          data.sort(interviewDateSort);
         }
         setItems(Array.isArray(data) ? data : []);
         setLoading(false);
@@ -1252,12 +1267,7 @@ export default function Home() {
   }, []);
 
   function sortItems(arr: TrackerItem[]) {
-    return [...arr].sort((a, b) => {
-      if (a.nextInterviewDate && b.nextInterviewDate) return a.nextInterviewDate.localeCompare(b.nextInterviewDate);
-      if (a.nextInterviewDate) return -1;
-      if (b.nextInterviewDate) return 1;
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
+    return [...arr].sort(interviewDateSort);
   }
 
   async function handleStageChange(id: number, stage: string) {
