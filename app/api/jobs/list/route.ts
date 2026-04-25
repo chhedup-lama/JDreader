@@ -9,6 +9,7 @@ export async function GET() {
         applicationPack: {
           select: {
             atsScore: true,
+            afterAtsScore: true,
             coverLetter: true,
             hrEmail: true,
             linkedinMessage: true,
@@ -26,6 +27,7 @@ export async function GET() {
       pack: job.applicationPack
         ? {
             atsScore: job.applicationPack.atsScore,
+            afterAtsScore: job.applicationPack.afterAtsScore,
             hasCoverLetter: !!job.applicationPack.coverLetter,
             hasHrEmail: !!job.applicationPack.hrEmail,
             hasLinkedin: !!job.applicationPack.linkedinMessage,

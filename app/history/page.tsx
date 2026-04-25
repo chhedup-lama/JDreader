@@ -11,25 +11,43 @@ interface ApplicationSummary {
   createdAt: string;
   pack: {
     atsScore: number;
+    afterAtsScore: number;
     hasCoverLetter: boolean;
     hasHrEmail: boolean;
     hasLinkedin: boolean;
   } | null;
 }
 
-function ATSBadge({ score }: { score: number }) {
-  const color =
-    score >= 75
-      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-      : score >= 50
-      ? "bg-amber-50 text-amber-700 border-amber-200"
-      : "bg-red-50 text-red-700 border-red-200";
+function scoreColor(score: number) {
+  return score >= 75
+    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+    : score >= 50
+    ? "bg-amber-50 text-amber-700 border-amber-200"
+    : "bg-red-50 text-red-700 border-red-200";
+}
+
+function ATSBadge({ before, after }: { before: number; after: number }) {
+  const delta = after - before;
 
   return (
-    <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg border ${color}`}>
-      <span className="text-sm font-bold">{score}</span>
-      <span className="font-normal opacity-70">/ 100</span>
-    </span>
+    <div className="inline-flex items-center gap-1.5">
+      <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg border ${scoreColor(before)}`}>
+        <span className="font-normal opacity-60 text-[10px]">before</span>
+        <span className="font-bold">{before}</span>
+      </span>
+      <svg className="w-3 h-3 text-slate-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+      </svg>
+      <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg border ${scoreColor(after)}`}>
+        <span className="font-normal opacity-60 text-[10px]">after</span>
+        <span className="font-bold">{after}</span>
+        {delta !== 0 && (
+          <span className={`text-[10px] font-semibold ${delta > 0 ? "text-emerald-600" : "text-red-500"}`}>
+            {delta > 0 ? `+${delta}` : delta}
+          </span>
+        )}
+      </span>
+    </div>
   );
 }
 
@@ -219,7 +237,7 @@ export default function HistoryPage() {
 
                 {/* Right: ATS score + view button + delete */}
                 <div className="flex flex-row sm:flex-col sm:items-end items-center justify-between gap-3 sm:flex-shrink-0">
-                  {app.pack && <ATSBadge score={app.pack.atsScore} />}
+                  {app.pack && <ATSBadge before={app.pack.atsScore} after={app.pack.afterAtsScore} />}
 
                   {app.pack ? (
                     <Link
