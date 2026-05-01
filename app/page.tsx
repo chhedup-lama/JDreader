@@ -1301,7 +1301,7 @@ export default function Home() {
     { key: "screening",      label: "Screening",      count: items.filter(filterFns.screening).length },
     { key: "interviewing",   label: "Interviewing",   count: items.filter(filterFns.interviewing).length },
     { key: "offer",          label: "Offers",         count: items.filter(filterFns.offer).length },
-    { key: "rejected",       label: "Rejected",       count: items.filter(filterFns.rejected).length },
+    // { key: "rejected",       label: "Rejected",       count: items.filter(filterFns.rejected).length },
     { key: "low_conversion", label: "Low Conversion", count: items.filter(filterFns.low_conversion).length },
   ];
 
