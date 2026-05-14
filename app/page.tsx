@@ -11,7 +11,7 @@ interface SubmissionReminder {
 }
 
 type EmploymentType = "full-time" | "contract";
-type Currency = "GBP" | "USD" | "EUR" | "AUD" | "CAD";
+type Currency = "EUR";
 
 interface TrackerItem {
   id: number;
@@ -33,8 +33,8 @@ interface TrackerItem {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const CURRENCIES: Currency[] = ["GBP", "USD", "EUR", "AUD", "CAD"];
-const CURRENCY_SYMBOL: Record<Currency, string> = { GBP: "£", USD: "$", EUR: "€", AUD: "A$", CAD: "C$" };
+const CURRENCIES: Currency[] = ["EUR"];
+const CURRENCY_SYMBOL: Record<Currency, string> = { EUR: "€" };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -479,7 +479,7 @@ const EMPTY_FORM: FormState = {
   employmentType: "full-time",
   salaryMin: "",
   salaryMax: "",
-  currency: "GBP",
+  currency: "EUR",
   totalRounds: 3,
   iconUrl: "",
   notes: "",

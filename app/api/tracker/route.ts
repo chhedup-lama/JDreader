@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
         employmentType: employmentType ?? "full-time",
         salaryMin: salaryMin ? parseInt(salaryMin) : null,
         salaryMax: salaryMax ? parseInt(salaryMax) : null,
-        currency: currency ?? "GBP",
+        currency: currency ?? "EUR",
         totalRounds: totalRounds ? parseInt(totalRounds) : 3,
         currentStage: "screening",
         iconUrl: iconUrl?.trim() ?? "",
