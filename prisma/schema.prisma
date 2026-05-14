@@ -99,6 +99,7 @@ model InterviewTracker {
   iconUrl             String   @default("")
   notes               String   @default("")
   nextInterviewDate   String   @default("")
+  lastContactedDate   String   @default("")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }
